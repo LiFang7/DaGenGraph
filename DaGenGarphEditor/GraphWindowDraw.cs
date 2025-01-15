@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using UnityEngine;
 using UnityEditor;
 
@@ -91,7 +92,7 @@ namespace DaGenGraph.Editor
 
         private void DrawEdges()
         {
-            if (m_Graph.currentZoom <= 0.2f) return;
+            if (currentZoom <= 0.2f) return;
             if (m_NodeViews == null) return;
             m_AniTime += m_Timer;
             if (m_AniTime >= 3)
@@ -140,7 +141,7 @@ namespace DaGenGraph.Editor
             //A node is selected and the Alt Key is not pressed -> show the edge color depending on socket type of this node (if it is an output or an input one)
             if (m_SelectedNodes.Count == 1 && !altKeyPressed)
             {
-                Node selectedNode = m_SelectedNodes[0];
+                NodeBase selectedNode = m_SelectedNodes[0];
                 if (selectedNode == null) return;
                 if (selectedNode.ContainsEdge(edge.edgeId))
                 {
@@ -285,8 +286,8 @@ namespace DaGenGraph.Editor
             BeginWindows();
             foreach (var nodeView in m_NodeViews.Values)
             {
-                nodeView.zoomedBeyondPortDrawThreshold = m_Graph.currentZoom <= 0.4f;
-                nodeView.DrawNodeGUI(graphArea, m_Graph.currentPanOffset, m_Graph.currentZoom);
+                nodeView.zoomedBeyondPortDrawThreshold = currentZoom <= 0.4f;
+                nodeView.DrawNodeGUI(graphArea, m_Graph.currentPanOffset, currentZoom);
             }
 
             EndWindows();
@@ -302,7 +303,7 @@ namespace DaGenGraph.Editor
 
         private void DrawPortsEdgePoints()
         {
-            if (m_Graph.currentZoom <= 0.4f) return;
+            if (currentZoom <= 0.4f) return;
             foreach (var port in ports.Values)
             {
                 DrawPortEdgePoints(port); //draw the edge points
@@ -365,9 +366,9 @@ namespace DaGenGraph.Editor
         private void DrawLineFromPortToPosition(Port activePort, Vector2 worldPosition)
         {
             if (m_Mode != GraphMode.Connect) return;
-            if (m_Graph.currentZoom <= 0.4f) return;
+            if (currentZoom <= 0.4f) return;
             var from = GetClosestEdgePointWorldPositionFromPortToMousePosition(activePort,
-                worldPosition / m_Graph.currentZoom);
+                worldPosition / currentZoom);
             var to = worldPosition;
             float edgeLineWidth = 3;
             var edgeBackgroundColor = new Color(m_CreateEdgeLineColor.r * 0.2f,
@@ -401,7 +402,7 @@ namespace DaGenGraph.Editor
             return worldPosition;
         }
 
-        private IEnumerable<Vector2> GetPortEdgePointsInWorldSpace(Port port, Node parentNode)
+        private IEnumerable<Vector2> GetPortEdgePointsInWorldSpace(Port port, NodeBase parentNode)
         {
             var pointsInWorldSpace = new List<Vector2>();
             if (port == null) return pointsInWorldSpace;
@@ -414,7 +415,7 @@ namespace DaGenGraph.Editor
                     port.GetHeight());
 
                 socketWorldRect.position +=
-                    m_Graph.currentPanOffset / m_Graph.currentZoom; //this is the calculated socketGridRect
+                    m_Graph.currentPanOffset / currentZoom; //this is the calculated socketGridRect
                 pointsInWorldSpace.Add(new Vector2(socketWorldRect.x + edgePoint.x + 8,
                     socketWorldRect.y + edgePoint.y + 8));
             }
@@ -462,6 +463,43 @@ namespace DaGenGraph.Editor
 
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
+        }
+
+        #endregion
+
+        #region DrawInspector
+
+        private void DrawInspector()
+        {
+            var inspectorArea = new Rect(position.width * 0.8f, 0, position.width * 0.2f, position.height);
+            GUILayout.BeginArea(inspectorArea);
+            var selectedNode = m_SelectedNodes.FirstOrDefault();
+            if (selectedNode == null) return;
+            var fields = selectedNode.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance);
+
+            foreach (var field in fields)
+            {
+                object value = field.GetValue(selectedNode);
+                // 显示字段名称和对应的值
+                if (field.FieldType == typeof(string))
+                {
+                    field.SetValue(selectedNode, EditorGUILayout.TextField(field.Name, (string)value));
+                }
+                else if (field.FieldType == typeof(int))
+                {
+                    field.SetValue(selectedNode, EditorGUILayout.IntField(field.Name, (int)value));
+                }
+                else if (field.FieldType == typeof(float))
+                {
+                    field.SetValue(selectedNode, EditorGUILayout.FloatField(field.Name, (float)value));
+                }
+                else if (field.FieldType == typeof(bool))
+                {
+                    field.SetValue(selectedNode, EditorGUILayout.Toggle(field.Name, (bool)value));
+                }
+            }
+
+            GUILayout.EndArea();
         }
 
         #endregion

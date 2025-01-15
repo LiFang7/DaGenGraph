@@ -11,23 +11,23 @@ namespace DaGenGraph.Editor
     {
         #region Private Variables And Properties
 
-        private List<Node> m_SelectedNodes = new List<Node>();
+        private List<NodeBase> m_SelectedNodes = new List<NodeBase>();
         private bool m_SpaceKeyDown;
         internal bool altKeyPressed;
         private AnimBool m_AltKeyPressedAnimBool;
-        private Node m_PreviousHoveredNode;
-        private Node m_CurrentHoveredNode;
+        private NodeBase m_PreviousHoveredNode;
+        private NodeBase m_CurrentHoveredNode;
         private Port m_PreviousHoveredPort;
         private Port m_CurrentHoveredPort;
         private Port m_ActivePort;
         private VirtualPoint m_CurrentHoveredVirtualPoint;
         private Vector2 m_LastMousePosition = Vector2.zero;
         private Vector2 m_DragNodesDistance = Vector2.zero;
-        private readonly Dictionary<Node, Vector2> m_InitialDragNodePositions = new Dictionary<Node, Vector2>();
+        private readonly Dictionary<NodeBase, Vector2> m_InitialDragNodePositions = new Dictionary<NodeBase, Vector2>();
         private Rect m_SelectionRect;
         private SelectPoint m_StartSelectPoint;
-        private List<Node> m_TempNodesList;
-        private List<Node> m_SelectedNodesWhileSelecting;
+        private List<NodeBase> m_TempNodesList;
+        private List<NodeBase> m_SelectedNodesWhileSelecting;
         private const float double_click_interval = 0.2f;
         private double m_LastClickTime;
 
@@ -57,9 +57,9 @@ namespace DaGenGraph.Editor
             var mousePosition = current.mousePosition;
 
             //zoom out
-            if (current.delta.y > 0 && m_Graph.currentZoom > 0.1f)
+            if (current.delta.y > 0 && m_CurrentZoom > 0.1f)
             {
-                m_Graph.currentZoom -= 0.1f;
+                currentZoom -= 0.1f;
 
                 //perform pan to zoom out from mouse position
                 m_Graph.currentPanOffset = new Vector2(
@@ -71,9 +71,9 @@ namespace DaGenGraph.Editor
             }
 
             //zoom in
-            if (current.delta.y < 0 && m_Graph.currentZoom < 2f)
+            if (current.delta.y < 0 && currentZoom < 2f)
             {
-                m_Graph.currentZoom += 0.1f;
+                currentZoom += 0.1f;
 
                 //perform pan to zoom in to mouse position
                 m_Graph.currentPanOffset = new Vector2(
@@ -84,16 +84,16 @@ namespace DaGenGraph.Editor
             }
 
             //clamp the zoom value between min and max zoom targets
-            m_Graph.currentZoom = Mathf.Clamp(m_Graph.currentZoom, 0.1f, 2f);
+            currentZoom = Mathf.Clamp(currentZoom, 0.1f, 2f);
             //set the max number of decimals
-            m_Graph.currentZoom = (float) Math.Round(m_Graph.currentZoom, 2);
+            currentZoom = (float)Math.Round(currentZoom, 2);
             //use this event
             current.Use();
         }
 
         private Vector2 WorldToGridPosition(Vector2 worldPosition)
         {
-            return (worldPosition - m_Graph.currentPanOffset) / m_Graph.currentZoom;
+            return (worldPosition - m_Graph.currentPanOffset) / currentZoom;
         }
 
         #endregion
@@ -135,12 +135,12 @@ namespace DaGenGraph.Editor
                 case GraphMode.Connect: break;
                 case GraphMode.Delete: break;
             }
-            
-            
+
+
             m_CurrentHoveredNode = null;
             m_CurrentHoveredPort = null;
             m_CurrentHoveredVirtualPoint = null;
-            
+
             m_CurrentHoveredVirtualPoint = GetVirtualPointAtWorldPosition(Event.current.mousePosition);
 
             if (m_CurrentHoveredVirtualPoint == null)
@@ -191,7 +191,7 @@ namespace DaGenGraph.Editor
 
         private VirtualPoint GetVirtualPointAtWorldPosition(Vector2 worldPosition)
         {
-            if (m_Graph.currentZoom <= 0.4f)
+            if (m_CurrentZoom <= 0.4f)
                 return null; //if the graph is too zoomed out do not search for connection points
 
             //in order to help the developer click on these points, we create a small rect at the mouse position and Overlap with it
@@ -212,8 +212,8 @@ namespace DaGenGraph.Editor
                 {
                     if (!m_NodeViews[point.node.id].isVisible)
                         continue; //the node, that his point belongs to, is not visible -> do not process it
-                    var pointGridRect = new Rect(point.rect.position * m_Graph.currentZoom,
-                        point.rect.size * m_Graph.currentZoom);
+                    var pointGridRect = new Rect(point.rect.position * currentZoom,
+                        point.rect.size * currentZoom);
                     pointGridRect.x -= pointGridRect.width / 2;
                     pointGridRect.y -= pointGridRect.height / 4;
                     if (pointGridRect.Overlaps(mouseRect)) return point;
@@ -226,7 +226,7 @@ namespace DaGenGraph.Editor
 
         private Port GetPortAtWorldPositionFromHoverRect(Vector2 worldPosition)
         {
-            if (m_Graph.currentZoom <= 0.4f)
+            if (currentZoom <= 0.4f)
             {
                 //if the graph is too zoomed out do not search for connection points
                 return null;
@@ -251,8 +251,8 @@ namespace DaGenGraph.Editor
                     port.hoverRect.width,
                     port.hoverRect.height);
 
-                var gridRect = new Rect(worldRect.position * m_Graph.currentZoom + m_Graph.currentPanOffset,
-                    worldRect.size * m_Graph.currentZoom);
+                var gridRect = new Rect(worldRect.position * currentZoom + m_Graph.currentPanOffset,
+                    worldRect.size * currentZoom);
 
                 if (gridRect.Contains(worldPosition))
                     return port;
@@ -261,7 +261,7 @@ namespace DaGenGraph.Editor
             return null;
         }
 
-        private Node GetNodeAtWorldPosition(Vector2 worldPosition)
+        private NodeBase GetNodeAtWorldPosition(Vector2 worldPosition)
         {
             return (from nodeView in m_NodeViews.Values
                 where nodeView.isVisible
@@ -269,26 +269,26 @@ namespace DaGenGraph.Editor
                 select nodeView.node).FirstOrDefault();
         }
 
-        private Rect GetNodeHeaderGridRect(Node node)
+        private Rect GetNodeHeaderGridRect(NodeBase node)
         {
             return new Rect(GridToWorldPosition(node.GetHeaderRect().position),
-                node.GetHeaderRect().size * m_Graph.currentZoom);
+                node.GetHeaderRect().size * currentZoom);
         }
 
-        private Rect GetNodeFooterGridRect(Node node)
+        private Rect GetNodeFooterGridRect(NodeBase node)
         {
             return new Rect(GridToWorldPosition(node.GetFooterRect().position),
-                node.GetFooterRect().size * m_Graph.currentZoom);
+                node.GetFooterRect().size * currentZoom);
         }
 
         private Vector2 GridToWorldPosition(Vector2 gridPosition)
         {
-            return gridPosition * m_Graph.currentZoom + m_Graph.currentPanOffset;
+            return gridPosition * currentZoom + m_Graph.currentPanOffset;
         }
 
-        private Rect GetNodeGridRect(Node node)
+        private Rect GetNodeGridRect(NodeBase node)
         {
-            return new Rect(GridToWorldPosition(node.GetRect().position), node.GetRect().size * m_Graph.currentZoom);
+            return new Rect(GridToWorldPosition(node.GetRect().position), node.GetRect().size * currentZoom);
         }
 
         #endregion
@@ -396,7 +396,6 @@ namespace DaGenGraph.Editor
             if (current.button != 0) return;
             if (current.type == EventType.MouseDown)
             {
-
                 //left mouse button is down and the space key is down as well -> enter panning mode
                 if (m_SpaceKeyDown)
                 {
@@ -439,22 +438,19 @@ namespace DaGenGraph.Editor
                         if (current.shift || current.control || current.command)
                         {
                             //add/remove the node to/from selection
-                            SelectNodes(new List<Node> {m_CurrentHoveredNode}, true);
+                            SelectNodes(new List<NodeBase> { m_CurrentHoveredNode }, true);
                         }
                         //we may have a selection and we do not want to override it in order to be able to start dragging
                         else if (!m_SelectedNodes.Contains(m_CurrentHoveredNode))
                         {
                             //select this node only
-                            SelectNodes(new List<Node> {m_CurrentHoveredNode}, false);
+                            SelectNodes(new List<NodeBase> { m_CurrentHoveredNode }, false);
                         }
 
                         //allow dragging ONLY IF the mouse is over a selected node
                         //in the previous lines we only checked if it's over a node, but not if the node we are hovering over is currently selected
                         if (m_SelectedNodes.Contains(m_CurrentHoveredNode))
                         {
-                            if (Selection.activeObject != m_CurrentHoveredNode)
-                                Selection.activeObject = m_CurrentHoveredNode; //select the node
-
                             //pressed left mouse button over a node -> it's a possible start drag
                             PrepareToDragSelectedNodes(Event.current.mousePosition);
                             m_Mode = GraphMode.Drag;
@@ -660,18 +656,16 @@ namespace DaGenGraph.Editor
             {
                 ev.outputPort.RemoveEdge(ev.edgeId);
                 ev.inputPort.RemoveEdge(ev.edgeId);
-                EditorUtility.SetDirty(ev.outputNode);
-                EditorUtility.SetDirty(ev.inputNode);
                 edgeViews.Remove(ev.edgeId);
             }
         }
 
-        private void SelectNodes(IEnumerable<Node> nodes, bool addToCurrentSelection)
+        private void SelectNodes(IEnumerable<NodeBase> nodes, bool addToCurrentSelection)
         {
             if (!addToCurrentSelection) m_SelectedNodes.Clear(); //if this is a new selection -> clear the previous one
 
             //check if the GUI needs to get reconstructed
-            foreach (Node node in nodes)
+            foreach (NodeBase node in nodes)
             {
                 //found a node id not in the constructed database -> skip this entry and trigger a construct gui
                 if (!nodeViews.ContainsKey(node.id))
@@ -697,20 +691,20 @@ namespace DaGenGraph.Editor
             m_LastMousePosition = mousePosition;
             m_DragNodesDistance = Vector2.zero;
             m_InitialDragNodePositions.Clear();
-            foreach (Node node in m_SelectedNodes) m_InitialDragNodePositions.Add(node, node.GetPosition());
+            foreach (NodeBase node in m_SelectedNodes) m_InitialDragNodePositions.Add(node, node.GetPosition());
         }
 
         private void PrepareToCreateSelectionBox(Vector2 currentMousePosition)
         {
-            currentMousePosition = currentMousePosition / m_Graph.currentZoom;
+            currentMousePosition = currentMousePosition / currentZoom;
 
             m_SelectionRect = new Rect(); //clear the previous selection rect
             m_StartSelectPoint = new SelectPoint(currentMousePosition); //get the start position for the selection rect
-            m_TempNodesList = new List<Node>(); //clear the previous saved start selection box selected nodes
+            m_TempNodesList = new List<NodeBase>(); //clear the previous saved start selection box selected nodes
             m_TempNodesList =
-                new List<Node>(
+                new List<NodeBase>(
                     m_SelectedNodes); //save the currently selected node (we need this in order to be able to invert the selection)
-            m_SelectedNodesWhileSelecting = new List<Node>(); //clear the nodes contained in the previous selection
+            m_SelectedNodesWhileSelecting = new List<NodeBase>(); //clear the nodes contained in the previous selection
         }
 
         private void UpdateSelectedNodesWhileDragging()
@@ -718,12 +712,12 @@ namespace DaGenGraph.Editor
             m_DragNodesDistance += Event.current.mousePosition - m_LastMousePosition;
             m_LastMousePosition = Event.current.mousePosition;
 
-            foreach (Node node in m_SelectedNodes)
+            foreach (NodeBase node in m_SelectedNodes)
             {
                 Vector2 initialPosition = m_InitialDragNodePositions[node];
                 Vector2 newPosition = node.GetPosition();
-                newPosition.x = initialPosition.x + m_DragNodesDistance.x / m_Graph.currentZoom;
-                newPosition.y = initialPosition.y + m_DragNodesDistance.y / m_Graph.currentZoom;
+                newPosition.x = initialPosition.x + m_DragNodesDistance.x / currentZoom;
+                newPosition.y = initialPosition.y + m_DragNodesDistance.y / currentZoom;
                 node.SetPosition(SnapPositionToGrid(newPosition));
             }
 
@@ -732,7 +726,7 @@ namespace DaGenGraph.Editor
 
         private void UpdateSelectionBox(Vector2 currentMousePosition)
         {
-            currentMousePosition = currentMousePosition / m_Graph.currentZoom;
+            currentMousePosition = currentMousePosition / currentZoom;
 
             if (m_StartSelectPoint == null)
             {
@@ -754,7 +748,7 @@ namespace DaGenGraph.Editor
             m_SelectedNodesWhileSelecting.Clear();
             foreach (var nodeView in nodeViews.Values)
             {
-                var gridRect = new Rect(nodeView.node.GetPosition() + m_Graph.currentPanOffset / m_Graph.currentZoom,
+                var gridRect = new Rect(nodeView.node.GetPosition() + m_Graph.currentPanOffset / currentZoom,
                     nodeView.node.GetSize());
                 if (m_SelectionRect.Overlaps(gridRect))
                     m_SelectedNodesWhileSelecting.Add(nodeView.node);
@@ -777,7 +771,7 @@ namespace DaGenGraph.Editor
             }
         }
 
-        private void UpdateNodesSelectedState(ICollection<Node> selectedNodes)
+        private void UpdateNodesSelectedState(ICollection<NodeBase> selectedNodes)
         {
             foreach (var nodeView in m_NodeViews.Values)
             {
@@ -787,9 +781,9 @@ namespace DaGenGraph.Editor
 
         private void EndDragSelectedNodes()
         {
-            var selectionBoxNodes = new List<Node>();
+            var selectionBoxNodes = new List<NodeBase>();
 
-            foreach (Node selectedNode in m_SelectedNodesWhileSelecting) selectionBoxNodes.Add(selectedNode);
+            foreach (NodeBase selectedNode in m_SelectedNodesWhileSelecting) selectionBoxNodes.Add(selectedNode);
 
             //if shift key is not pressed, clear current selection
             SelectNodes(selectionBoxNodes, false);
@@ -804,7 +798,7 @@ namespace DaGenGraph.Editor
             ConnectPorts(m_Graph, outputPort, inputPort);
         }
 
-        private static void ConnectPorts(Graph graph, Port outputPort, Port inputPort)
+        private static void ConnectPorts(GraphBase graph, Port outputPort, Port inputPort)
         {
             if (outputPort.overrideConnection)
             {
@@ -839,13 +833,11 @@ namespace DaGenGraph.Editor
                 if (ev.outputPort != null)
                 {
                     ev.outputPort.RemoveEdge(edgeId);
-                    EditorUtility.SetDirty(ev.outputNode);
                 }
 
                 if (ev.inputPort != null)
                 {
                     ev.inputPort.RemoveEdge(edgeId);
-                    EditorUtility.SetDirty(ev.outputNode);
                 }
 
                 edgeViews.Remove(edgeId);
@@ -936,7 +928,6 @@ namespace DaGenGraph.Editor
         {
             m_SelectedNodes.Clear();
             UpdateNodesSelectedState(m_SelectedNodes);
-            Selection.activeObject = m_Graph;
         }
 
         private void SelectAll()
@@ -944,10 +935,9 @@ namespace DaGenGraph.Editor
             m_SelectedNodes.Clear();
             m_SelectedNodes.AddRange(m_Graph.nodes.Values);
             UpdateNodesSelectedState(m_SelectedNodes);
-            if (m_SelectedNodes != null) Selection.objects = m_SelectedNodes.ToArray();
         }
 
-        protected virtual void DeleteNodes(List<Node> nodes)
+        protected virtual void DeleteNodes(List<NodeBase> nodes)
         {
             if (nodes == null || nodes.Count == 0) return;
             nodes = nodes.Where(n => n != null).ToList();
@@ -963,13 +953,11 @@ namespace DaGenGraph.Editor
                     if (edgeView.inputNode == node && edgeView.outputPort != null)
                     {
                         edgeView.outputPort.DisconnectFromNode(node.id);
-                        EditorUtility.SetDirty(edgeView.outputNode);
                     }
 
                     if (edgeView.outputNode == node && edgeView.inputPort != null)
                     {
                         edgeView.inputPort.DisconnectFromNode(node.id);
-                        EditorUtility.SetDirty(edgeView.inputNode);
                     }
                 }
             }
@@ -982,10 +970,6 @@ namespace DaGenGraph.Editor
                 if (!node.canBeDeleted) continue;
                 m_Graph.nodes.Remove(node.id);
                 nodeViews.Remove(node.id);
-                if (AssetDatabase.Contains(m_Graph))
-                {
-                    AssetDatabase.RemoveObjectFromAsset(node);
-                }
             }
 
             DeselectAll();
@@ -1005,6 +989,58 @@ namespace DaGenGraph.Editor
             m_Graph.startNode = m_Graph.nodes.First().Value;
         }
 
+        protected virtual NodeBase CreateNode(Vector2 pos, string _name = "Node")
+        {
+            var node = new NodeBase();
+            node.InitNode(m_Graph, WorldToGridPosition(pos), _name);
+            node.AddDefaultPorts();
+            return node;
+        }
+
+        protected virtual void AddNode(NodeBase node)
+        {
+            if (node == null) return;
+            var nodeView = new NodeView();
+            nodeView.Init(++m_Graph.windowID, node, m_Graph);
+            m_NodeViews.Add(node.id, nodeView);
+            if (!m_Graph.nodes.Values.ToList().Exists(n => n.id == node.id))
+            {
+                m_Graph.nodes.Add(node.id, node);
+            }
+
+            if (m_Graph.nodes.Values.Count(n => !string.IsNullOrEmpty(n.id)) != 1) return;
+            var uiNode = m_Graph.nodes.First().Value;
+            m_Graph.startNode = uiNode;
+        }
+
+        protected virtual void RemovePort(Port port)
+        {
+            if (!m_Graph.nodes[port.nodeId].CanDeletePort(port)) return;
+            DisconnectPort(port);
+            points.Remove(port.id);
+            edgeViews.Remove(port.id);
+            var node = m_Graph.nodes[port.nodeId];
+            if (node == null) return;
+            if (port.isInput) node.inputPorts.Remove(port);
+            if (port.isOutput) node.outputPorts.Remove(port);
+            node.onDeletePort?.Invoke(port);
+        }
+
+        protected virtual void SaveGraph()
+        {
+            m_Graph.Save();
+        }
+
+        protected virtual void OpenGraph()
+        {
+            //TODO 打开Json文件形式的Graph
+        }
+
+        protected virtual void CreateGraph()
+        {
+            m_Graph = new GraphBase();
+        }
+
         #endregion
 
         #region HandleKeys
@@ -1016,7 +1052,7 @@ namespace DaGenGraph.Editor
 
             //Alt Key down -> hide selections
             if (altKeyPressed && e.alt)
-                UpdateNodesSelectedState(new List<Node>());
+                UpdateNodesSelectedState(new List<NodeBase>());
             else if (altKeyPressed != e.alt)
                 UpdateNodesSelectedState(m_SelectedNodes);
             altKeyPressed = e.alt && m_HasFocus;
@@ -1078,47 +1114,5 @@ namespace DaGenGraph.Editor
         }
 
         #endregion
-
-        private Node CreateNode(Vector2 pos, string _name = "Node")
-        {
-            var node = CreateInstance<Node>();
-            node.InitNode(m_Graph, WorldToGridPosition(pos), _name);
-            node.AddDefaultPorts();
-            EditorUtility.SetDirty(node);
-            return node;
-        }
-
-        private void AddNode(Node node)
-        {
-            if (node == null) return;
-            var nodeView = new NodeView();
-            nodeView.Init(++m_Graph.windowID, node, m_Graph);
-            m_NodeViews.Add(node.id, nodeView);
-            if (!m_Graph.nodes.Values.ToList().Exists(n => n.id == node.id))
-            {
-                m_Graph.nodes.Add(node.id, node);
-                if (AssetDatabase.Contains(m_Graph))
-                {
-                    AssetDatabase.AddObjectToAsset(node, m_Graph);
-                }
-            }
-
-            if (m_Graph.nodes.Values.Count(n => !string.IsNullOrEmpty(n.id)) != 1) return;
-            var uiNode = m_Graph.nodes.First().Value;
-            m_Graph.startNode = uiNode;
-        }
-
-        public void RemovePort(Port port)
-        {
-            if (!m_Graph.nodes[port.nodeId].CanDeletePort(port)) return;
-            DisconnectPort(port);
-            points.Remove(port.id);
-            edgeViews.Remove(port.id);
-            var node = m_Graph.nodes[port.nodeId];
-            if (node == null) return; //sanity check
-            if (port.isInput) node.inputPorts.Remove(port);
-            if (port.isOutput) node.outputPorts.Remove(port);
-            EditorUtility.SetDirty(node);
-        }
     }
 }

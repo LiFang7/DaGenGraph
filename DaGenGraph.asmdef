@@ -6,14 +6,7 @@
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,
-    "precompiledReferences": [
-        "Sirenix.OdinInspector.Editor.dll",
-        "Sirenix.OdinInspector.Attributes.dll",
-        "Sirenix.Serialization.Config.dll",
-        "Sirenix.Serialization.dll",
-        "Sirenix.Utilities.dll",
-        "Sirenix.Utilities.Editor.dll"
-    ],
+    "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],

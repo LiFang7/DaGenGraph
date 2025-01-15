@@ -8,11 +8,11 @@ namespace DaGenGraph.Editor
         /// <summary> The connection id. Every connection will have a record on two sockets (the output socket and the input socket) </summary>
         public string edgeId;
         /// <summary> Reference to the OutputPort Node of this connections </summary>
-        public Node outputNode;
+        public NodeBase outputNode;
         /// <summary> Reference to the OutputPort Port of the OutputPort Node of this connection </summary>
         public Port outputPort;
         /// <summary> Reference to the InputPort Node of this connection </summary>
-        public Node inputNode;
+        public NodeBase inputNode;
         /// <summary> Reference to the InputPort Port of the InputPort Node of this connection </summary>
         public Port inputPort;
         /// <summary> Reference to the OutputPort Virtual Point of this connection </summary>

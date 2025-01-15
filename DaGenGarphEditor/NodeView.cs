@@ -9,43 +9,43 @@ namespace DaGenGraph.Editor
     {
         #region Private Variables
 
-        private Node m_Node;
+        private NodeBase m_Node;
         private int m_WindowId;
-        private Graph m_Graph;
-        [NonSerialized] private GUIStyle m_CurrentStyle;
-        [NonSerialized] private GUIStyle m_NormalStyle;
-        [NonSerialized] private GUIStyle m_SelectedStyle;
-        [NonSerialized] private GUIStyle m_CurrentHeaderStyle;
-        [NonSerialized] private GUIStyle m_HeaderNormalStyle;
-        [NonSerialized] private GUIStyle m_HeaderSelectedStyle;
-        [NonSerialized] private GUIStyle m_IconStyle;
-        [NonSerialized] private Vector2 m_DeleteButtonSize;
-        [NonSerialized] private Vector2 m_Offset;
-        [NonSerialized] private Rect m_DrawRect;
-        [NonSerialized] public bool isVisible = true;
-        [NonSerialized] public bool zoomedBeyondPortDrawThreshold = false;
-        [NonSerialized] public bool isSelected;
-        [NonSerialized] private Rect m_GlowRect;
-        [NonSerialized] private Rect m_HeaderRect;
-        [NonSerialized] private Rect m_HeaderHoverRect;
-        [NonSerialized] private Rect m_HeaderIconRect;
-        [NonSerialized] private Rect m_HeaderTitleRect;
-        [NonSerialized] private Rect m_BodyRect;
-        [NonSerialized] private Rect m_FooterRect;
-        [NonSerialized] private Rect m_NodeOutlineRect;
-        [NonSerialized] private Color m_NodeGlowColor;
-        [NonSerialized] private Color m_NodeHeaderAndFooterBackgroundColor;
-        [NonSerialized] private Color m_NodeBodyColor;
-        [NonSerialized] private Color m_NodeOutlineColor;
-        [NonSerialized] private Color m_HeaderTextAndIconColor;
+        private GraphBase m_Graph;
+        private GUIStyle m_CurrentStyle;
+        private GUIStyle m_NormalStyle;
+        private GUIStyle m_SelectedStyle;
+        private GUIStyle m_CurrentHeaderStyle;
+        private GUIStyle m_HeaderNormalStyle;
+        private GUIStyle m_HeaderSelectedStyle;
+        private GUIStyle m_IconStyle;
+        private Vector2 m_DeleteButtonSize;
+        private Vector2 m_Offset;
+        private Rect m_DrawRect;
+        public bool isVisible = true;
+        public bool zoomedBeyondPortDrawThreshold = false;
+        public bool isSelected;
+        private Rect m_GlowRect;
+        private Rect m_HeaderRect;
+        private Rect m_HeaderHoverRect;
+        private Rect m_HeaderIconRect;
+        private Rect m_HeaderTitleRect;
+        private Rect m_BodyRect;
+        private Rect m_FooterRect;
+        private Rect m_NodeOutlineRect;
+        private Color m_NodeGlowColor;
+        private Color m_NodeHeaderAndFooterBackgroundColor;
+        private Color m_NodeBodyColor;
+        private Color m_NodeOutlineColor;
+        private Color m_HeaderTextAndIconColor;
 
         #endregion
 
         #region Properties
 
         public int windowId => m_WindowId;
-        public Node node => m_Node;
-        public Graph graph => m_Graph;
+        public NodeBase node => m_Node;
+        public GraphBase graph => m_Graph;
         public float x => m_Node.GetX();
         public float y => m_Node.GetY();
         public float width => m_Node.GetWidth();
@@ -91,9 +91,8 @@ namespace DaGenGraph.Editor
 
         #region Virtual Methods
 
-        public virtual void Init(int windowId, Node node, Graph graph)
+        public virtual void Init(int windowId, NodeBase node, GraphBase graph)
         {
-            node.deletePort = GraphWindow.instance.RemovePort;
             m_WindowId = windowId;
             m_Node = node;
             m_Graph = graph;
@@ -106,12 +105,12 @@ namespace DaGenGraph.Editor
         protected virtual void OnNodeGUI()
         {
             DrawNodeBody();
-            DrawNodeProts();
+            DrawNodePorts();
         }
 
         protected virtual GUIStyle GetIconStyle()
         {
-            return m_IconStyle ?? (m_IconStyle = nodeDot);
+            return m_IconStyle ??= nodeDot;
         }
 
         protected virtual Rect DrawPort(Port port)
@@ -280,7 +279,7 @@ namespace DaGenGraph.Editor
             GUI.color = initialColor; //reset colors
         }
 
-        protected void DrawNodeProts()
+        protected void DrawNodePorts()
         {
             DrawPortsList(node.inputPorts);
             DrawPortsList(node.outputPorts);
