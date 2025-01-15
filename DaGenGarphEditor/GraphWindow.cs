@@ -275,7 +275,7 @@ namespace DaGenGraph.Editor
             GUI.BeginClip(m_GraphAreaIncludingTab);
             GUI.matrix = initialMatrix; //reset the matrix to the initial value
             DrawToolbar();
-            DrawInspector();
+            //DrawInspector();
             HandleZoom();
             HandlePanning();
             HandleMouseRightClicks();
