@@ -172,7 +172,7 @@ namespace DaGenGraph.Editor
 
         private Dictionary<string, NodeView> nodeViews => m_NodeViews;
 
-        private void OnEnable()
+        protected virtual void OnEnable()
         {
             m_AltKeyPressedAnimBool = new AnimBool(false, Repaint);
             m_NodeViews = new Dictionary<string, NodeView>();

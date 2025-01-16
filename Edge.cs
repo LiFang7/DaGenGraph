@@ -30,6 +30,11 @@ namespace DaGenGraph
 
         #region Constructors
 
+        public Edge()
+        {
+            
+        }
+
         /// <summary> Creates a new instance for this class between two ports (Input - Output or Output - Input) </summary>
         /// <param name="port1"> port One </param>
         /// <param name="port2"> port Two </param>

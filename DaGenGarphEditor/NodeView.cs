@@ -334,7 +334,7 @@ namespace DaGenGraph.Editor
             m_NodeBodyColor = UColor.GetColor().nodeBodyColor;
 
             m_HeaderTextAndIconColor = UColor.GetColor().nodeHeaderIconColor;
-            if (node.hasErrors)
+            if (node.GetHasErrors())
             {
                 m_HeaderTextAndIconColor = Color.red;
             }

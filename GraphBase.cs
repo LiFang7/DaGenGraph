@@ -15,11 +15,16 @@ namespace DaGenGraph
 
         public bool leftInRightOut;
         public string guid = Guid.NewGuid().ToString();
-        public Dictionary<string, NodeBase> nodes { private set; get; } = new();
+        public Dictionary<string, NodeBase> nodes = new();
 
         public NodeBase GetStartNode()
         {
-            if (!string.IsNullOrEmpty(startNodeId) && nodes.TryGetValue(startNodeId, out var node))
+            return FindNode(startNodeId);
+        }
+
+        public NodeBase FindNode(string nodeId)
+        {
+            if (!string.IsNullOrEmpty(nodeId) && nodes.TryGetValue(nodeId, out var node))
             {
                 return node;
             }

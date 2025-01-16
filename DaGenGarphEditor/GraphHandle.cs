@@ -91,7 +91,7 @@ namespace DaGenGraph.Editor
             current.Use();
         }
 
-        private Vector2 WorldToGridPosition(Vector2 worldPosition)
+        protected Vector2 WorldToGridPosition(Vector2 worldPosition)
         {
             return (worldPosition - m_Graph.currentPanOffset) / currentZoom;
         }
@@ -335,7 +335,7 @@ namespace DaGenGraph.Editor
             current.Use();
         }
 
-        private void ShowGraphContextMenu()
+        protected virtual void ShowGraphContextMenu()
         {
             var current = Event.current;
             var menu = new GenericMenu();
@@ -1033,6 +1033,7 @@ namespace DaGenGraph.Editor
         {
             var graphBase = LoadGraphBase();
             if (graphBase == null) return;
+            nodeViews.Clear();
             m_Graph = graphBase;
             foreach (var item in m_Graph.nodes)
             {
@@ -1043,7 +1044,10 @@ namespace DaGenGraph.Editor
         
         protected virtual void InitGraph()
         {
-            m_Graph = CreateGraphBase();
+            var graphBase = CreateGraphBase();
+            if (graphBase == null) return;
+            nodeViews.Clear();
+            m_Graph = graphBase;
         }
 
         protected abstract GraphBase CreateGraphBase();
