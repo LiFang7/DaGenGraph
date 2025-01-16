@@ -7,7 +7,7 @@ using UnityEditor;
 
 namespace DaGenGraph.Editor
 {
-    public partial class GraphWindow
+    public abstract partial class GraphWindow
     {
         #region GUIStyles
 

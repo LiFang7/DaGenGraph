@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace DaGenGraph.Editor
 {
-    public partial class GraphWindow
+    public abstract partial class GraphWindow
     {
         #region Private Variables And Properties
 
@@ -322,7 +322,7 @@ namespace DaGenGraph.Editor
                 menu.AddItem(new GUIContent("SetDefault"), false, () =>
                 {
                     m_SelectedNodes.Clear();
-                    m_Graph.startNode = m_CurrentHoveredNode;
+                    m_Graph.startNodeId = m_CurrentHoveredNode.id;
                 });
                 menu.AddItem(new GUIContent("AddOutputPort"), false,
                     () => { m_CurrentHoveredNode.AddOutputPort("DefaultOutPutName", EdgeMode.Multiple, true, true); });
@@ -940,6 +940,7 @@ namespace DaGenGraph.Editor
         protected virtual void DeleteNodes(List<NodeBase> nodes)
         {
             if (nodes == null || nodes.Count == 0) return;
+            var startNode = m_Graph.GetStartNode();
             nodes = nodes.Where(n => n != null).ToList();
             //disconnect all the nodes that need to be deleted
             foreach (var node in nodes)
@@ -973,20 +974,20 @@ namespace DaGenGraph.Editor
             }
 
             DeselectAll();
-            if (nodes.Contains(m_Graph.startNode))
+            if (nodes.Contains(startNode))
             {
                 if (m_Graph.nodes.Count > 0)
                 {
-                    m_Graph.startNode = m_Graph.nodes.First().Value;
+                    m_Graph.startNodeId = m_Graph.nodes.First().Value.id;
                 }
                 else
                 {
-                    m_Graph.startNode = null;
+                    m_Graph.startNodeId = null;
                 }
             }
 
             if (m_Graph.nodes.Values.Count(n => !string.IsNullOrEmpty(n.id)) != 1) return;
-            m_Graph.startNode = m_Graph.nodes.First().Value;
+            m_Graph.startNodeId = m_Graph.nodes.First().Value.id;
         }
 
         protected virtual NodeBase CreateNode(Vector2 pos, string _name = "Node")
@@ -1001,7 +1002,7 @@ namespace DaGenGraph.Editor
         {
             if (node == null) return;
             var nodeView = new NodeView();
-            nodeView.Init(++m_Graph.windowID, node, m_Graph);
+            nodeView.Init(++m_Graph.windowID, node, m_Graph, this);
             m_NodeViews.Add(node.id, nodeView);
             if (!m_Graph.nodes.Values.ToList().Exists(n => n.id == node.id))
             {
@@ -1010,7 +1011,7 @@ namespace DaGenGraph.Editor
 
             if (m_Graph.nodes.Values.Count(n => !string.IsNullOrEmpty(n.id)) != 1) return;
             var uiNode = m_Graph.nodes.First().Value;
-            m_Graph.startNode = uiNode;
+            m_Graph.startNodeId = uiNode.id;
         }
 
         protected virtual void RemovePort(Port port)
@@ -1026,20 +1027,17 @@ namespace DaGenGraph.Editor
             node.onDeletePort?.Invoke(port);
         }
 
-        protected virtual void SaveGraph()
+        protected abstract void SaveGraph();
+
+        protected abstract void OpenGraph();
+
+        protected virtual void InitGraph()
         {
-            m_Graph.Save();
+            m_Graph = CreateGraphBase();
         }
 
-        protected virtual void OpenGraph()
-        {
-            //TODO 打开Json文件形式的Graph
-        }
-
-        protected virtual void CreateGraph()
-        {
-            m_Graph = new GraphBase();
-        }
+        protected abstract GraphBase CreateGraphBase();
+        
 
         #endregion
 

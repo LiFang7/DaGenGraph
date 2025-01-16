@@ -27,6 +27,10 @@ namespace DaGenGraph
         public bool isHovered;
         public bool errorNodeNameIsEmpty;
         public bool errorDuplicateNameFoundInGraph;
+        
+        /// <summary> Trigger a visual cue for this node, in the Editor, at runtime. Mostly used when this node has been activated </summary>
+        public bool ping;
+        
         public DeletePort onDeletePort;
 
         public delegate void DeletePort(Port port);
@@ -37,9 +41,6 @@ namespace DaGenGraph
 
         public virtual bool hasErrors => errorNodeNameIsEmpty || errorDuplicateNameFoundInGraph;
 
-
-        /// <summary> Trigger a visual cue for this node, in the Editor, at runtime. Mostly used when this node has been activated </summary>
-        public bool ping { get; set; }
 
         /// <summary> Returns the first input port. If there isn't one, it returns null </summary>
         public Port firstInputPort => inputPorts.Count > 0 ? inputPorts[0] : null;
