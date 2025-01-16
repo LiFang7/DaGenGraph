@@ -1028,9 +1028,19 @@ namespace DaGenGraph.Editor
         }
 
         protected abstract void SaveGraph();
-
-        protected abstract void OpenGraph();
-
+        
+        protected void LoadGraph()
+        {
+            var graphBase = LoadGraphBase();
+            if (graphBase == null) return;
+            m_Graph = graphBase;
+            foreach (var item in m_Graph.nodes)
+            {
+                AddNode(item.Value);
+            }
+        }
+        protected abstract GraphBase LoadGraphBase();
+        
         protected virtual void InitGraph()
         {
             m_Graph = CreateGraphBase();

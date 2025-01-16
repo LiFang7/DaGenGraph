@@ -177,7 +177,7 @@ namespace DaGenGraph.Editor
             m_AltKeyPressedAnimBool = new AnimBool(false, Repaint);
             m_NodeViews = new Dictionary<string, NodeView>();
             AddButton(new GUIContent("新建"), InitGraph);
-            AddButton(new GUIContent("打开"), OpenGraph);
+            AddButton(new GUIContent("打开"), LoadGraph);
             AddButton(new GUIContent("保存"), SaveGraph);
         }
 
@@ -647,5 +647,12 @@ namespace DaGenGraph.Editor
         }
 
         protected abstract T CreateGraph();
+        
+        protected sealed override GraphBase LoadGraphBase()
+        {
+            return LoadGraph();
+        }
+
+        protected abstract T LoadGraph();
     }
 }

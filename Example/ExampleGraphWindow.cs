@@ -44,7 +44,7 @@ namespace DaGenGraph.Example
             return new ExampleGraph();
         }
 
-        protected override void OpenGraph()
+        protected override ExampleGraph LoadGraph()
         {
             string searchPath = EditorUtility.OpenFilePanel($"新建{typeof(ExampleGraph).Name}配置文件", "Assets", "json");
             if (!string.IsNullOrEmpty(searchPath))
@@ -57,9 +57,10 @@ namespace DaGenGraph.Example
                         new UnityJsonConverter()
                     }
                 });
-                m_Graph = obj;
                 path = searchPath;
+                return obj;
             }
+            return null;
         }
 
         protected override void SaveGraph()
