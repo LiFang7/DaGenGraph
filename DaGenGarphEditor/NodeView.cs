@@ -10,6 +10,7 @@ namespace DaGenGraph.Editor
         #region Private Variables
 
         private NodeBase m_Node;
+        private GraphWindow m_graphWindow;
         private int m_WindowId;
         private GraphBase m_Graph;
         private GUIStyle m_CurrentStyle;
@@ -91,11 +92,12 @@ namespace DaGenGraph.Editor
 
         #region Virtual Methods
 
-        public virtual void Init(int windowId, NodeBase node, GraphBase graph)
+        public virtual void Init(int windowId, NodeBase node, GraphBase graph, GraphWindow graphWindow)
         {
             m_WindowId = windowId;
             m_Node = node;
             m_Graph = graph;
+            m_graphWindow = graphWindow;
         }
 
         public virtual void OnDoubleClick(EditorWindow window)
@@ -141,7 +143,7 @@ namespace DaGenGraph.Editor
             dividerColor.a = opacity * 0.8f;
 
             //check if we are in delete mode -> if true -> set the socket color to red (ONLY if the socket can be deleted)
-            if (GraphWindow.instance.altKeyPressed)
+            if (m_graphWindow.altKeyPressed)
             {
                 //since we're in delete mode and this socket can be deConnect -> set its color to red
                 if (port.isConnected)
@@ -332,7 +334,7 @@ namespace DaGenGraph.Editor
             m_NodeBodyColor = UColor.GetColor().nodeBodyColor;
 
             m_HeaderTextAndIconColor = UColor.GetColor().nodeHeaderIconColor;
-            if (node.hasErrors)
+            if (node.GetHasErrors())
             {
                 m_HeaderTextAndIconColor = Color.red;
             }

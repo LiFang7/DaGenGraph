@@ -27,66 +27,58 @@ namespace DaGenGraph
         public bool isHovered;
         public bool errorNodeNameIsEmpty;
         public bool errorDuplicateNameFoundInGraph;
+        
+        /// <summary> Trigger a visual cue for this node, in the Editor, at runtime. Mostly used when this node has been activated </summary>
+        public bool ping;
+        
         public DeletePort onDeletePort;
 
         public delegate void DeletePort(Port port);
 
         #endregion
 
-        #region Properties
+        #region Editor
 
-        public virtual bool hasErrors => errorNodeNameIsEmpty || errorDuplicateNameFoundInGraph;
+        public virtual bool GetHasErrors() => errorNodeNameIsEmpty || errorDuplicateNameFoundInGraph;
 
-
-        /// <summary> Trigger a visual cue for this node, in the Editor, at runtime. Mostly used when this node has been activated </summary>
-        public bool ping { get; set; }
 
         /// <summary> Returns the first input port. If there isn't one, it returns null </summary>
-        public Port firstInputPort => inputPorts.Count > 0 ? inputPorts[0] : null;
+        public Port GetFirstInputPort() => inputPorts.Count > 0 ? inputPorts[0] : null;
 
         /// <summary> Returns the first output port. If there isn't one, it returns null </summary>
-        public Port firstOutputPort => outputPorts.Count > 0 ? outputPorts[0] : null;
+        public Port GetFirstOutputPort() => outputPorts.Count > 0 ? outputPorts[0] : null;
 
 
         /// <summary> Returns this node's outputNodeIds </summary>
-        public List<string> outputNodeIds
+        public List<string> GetOutputNodeIds()
         {
-            get
+            var nodes = new List<string>();
+            foreach (var port in outputPorts)
             {
-                var nodes = new List<string>();
-                foreach (var port in outputPorts)
+                foreach (var edge in port.edges)
                 {
-                    foreach (var edge in port.edges)
-                    {
-                        nodes.Add(edge.outputNodeId);
-                    }
+                    nodes.Add(edge.outputNodeId);
                 }
-
-                return nodes;
             }
+
+            return nodes;
         }
 
         /// <summary> Returns this node's inputNodeIds </summary>
-        public List<string> inputNodeIds
+        public List<string> GetInputNodeIds()
         {
-            get
+            var nodes = new List<string>();
+            foreach (var port in inputPorts)
             {
-                var nodes = new List<string>();
-                foreach (var port in inputPorts)
+                foreach (var edge in port.edges)
                 {
-                    foreach (var edge in port.edges)
-                    {
-                        nodes.Add(edge.inputNodeId);
-                    }
+                    nodes.Add(edge.inputNodeId);
                 }
-
-                return nodes;
             }
+
+            return nodes;
         }
-
-        #endregion
-
-        #region Editor
+        
 
         private void CheckThatNodeNameIsNotEmpty()
         {

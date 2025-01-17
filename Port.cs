@@ -64,6 +64,7 @@ namespace DaGenGraph
 
         #region public Methods
 
+        public Port(){}
         public Port(NodeBase node,string guid, string portName, PortDirection direction, EdgeMode edgeMode,List<Vector2> edgePoints, bool canBeDeleted, bool canBeReordered)
         {
             if (string.IsNullOrEmpty(guid))

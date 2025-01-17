@@ -7,31 +7,9 @@ using UnityEngine;
 
 namespace DaGenGraph.Editor
 {
-    public partial class GraphWindow : EditorWindow
+    public abstract partial class GraphWindow  : EditorWindow  
     {
-        internal static GraphWindow instance
-        {
-            get
-            {
-                if (s_Instance != null) return s_Instance;
-                var windows = Resources.FindObjectsOfTypeAll<GraphWindow>();
-                s_Instance = windows.Length > 0 ? windows[0] : null;
-                if (s_Instance != null) return s_Instance;
-                s_Instance = CreateWindow<GraphWindow>();
-                return s_Instance;
-            }
-        }
-
-        private static GraphWindow s_Instance;
-
-        [MenuItem("DaGenGraph/Graph")]
-        public static void GetWindow()
-        {
-            instance.titleContent = new GUIContent("DaGenGraph");
-            instance.Show();
-        }
-
-        private GraphBase m_Graph;
+        protected GraphBase m_Graph;
         private GraphMode m_Mode = GraphMode.None;
         private float m_Timer;
         private float m_LastUpdateTime;
@@ -194,12 +172,12 @@ namespace DaGenGraph.Editor
 
         private Dictionary<string, NodeView> nodeViews => m_NodeViews;
 
-        private void OnEnable()
+        protected virtual void OnEnable()
         {
             m_AltKeyPressedAnimBool = new AnimBool(false, Repaint);
             m_NodeViews = new Dictionary<string, NodeView>();
-            AddButton(new GUIContent("新建"), CreateGraph);
-            AddButton(new GUIContent("打开"), OpenGraph);
+            AddButton(new GUIContent("新建"), InitGraph);
+            AddButton(new GUIContent("打开"), LoadGraph);
             AddButton(new GUIContent("保存"), SaveGraph);
         }
 
@@ -658,5 +636,23 @@ namespace DaGenGraph.Editor
                 y = position.y;
             }
         }
+    }
+    
+    
+    public abstract partial class GraphWindow<T> : GraphWindow where T : GraphBase
+    {
+        protected sealed override GraphBase CreateGraphBase()
+        {
+            return CreateGraph();
+        }
+
+        protected abstract T CreateGraph();
+        
+        protected sealed override GraphBase LoadGraphBase()
+        {
+            return LoadGraph();
+        }
+
+        protected abstract T LoadGraph();
     }
 }
