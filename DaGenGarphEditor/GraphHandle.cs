@@ -93,7 +93,7 @@ namespace DaGenGraph.Editor
 
         protected Vector2 WorldToGridPosition(Vector2 worldPosition)
         {
-            return (worldPosition - m_Graph.currentPanOffset) / currentZoom;
+            return m_Graph.WorldToGridPosition(worldPosition);
         }
 
         #endregion
@@ -304,30 +304,13 @@ namespace DaGenGraph.Editor
 
             if (m_CurrentHoveredPort != null)
             {
-                var menu = new GenericMenu();
-                menu.AddItem(new GUIContent("Delete"), false, () => { RemovePort(m_CurrentHoveredPort); });
-                menu.ShowAsContext();
+                ShowPortContextMenu(m_CurrentHoveredPort);
                 return;
             }
 
             if (m_CurrentHoveredNode != null)
             {
-                var menu = new GenericMenu();
-                menu.AddItem(new GUIContent("Delete"), false, () =>
-                {
-                    m_SelectedNodes.Clear();
-                    m_SelectedNodes.Add(m_CurrentHoveredNode);
-                    ExecuteGraphAction(GraphAction.DeleteNodes);
-                });
-                menu.AddItem(new GUIContent("SetDefault"), false, () =>
-                {
-                    m_SelectedNodes.Clear();
-                    m_Graph.startNodeId = m_CurrentHoveredNode.id;
-                });
-                menu.AddItem(new GUIContent("AddOutputPort"), false,
-                    () => { m_CurrentHoveredNode.AddOutputPort("DefaultOutPutName", EdgeMode.Multiple, true, true); });
-
-                menu.ShowAsContext();
+                ShowNodeContextMenu(m_CurrentHoveredNode);
                 return;
             }
 
@@ -337,12 +320,48 @@ namespace DaGenGraph.Editor
 
         protected virtual void ShowGraphContextMenu()
         {
-            var current = Event.current;
             var menu = new GenericMenu();
-            menu.AddItem(new GUIContent("New/Node"), false, () => { AddNode(CreateNode(current.mousePosition)); });
+            AddGraphMenuItems(menu);
             menu.ShowAsContext();
         }
 
+        protected virtual void AddGraphMenuItems(GenericMenu menu)
+        {
+            
+        }
+        
+        protected virtual void ShowNodeContextMenu(NodeBase nodeBase)
+        {
+            var menu = new GenericMenu();
+            AddNodeMenuItems(menu,nodeBase);
+            menu.ShowAsContext();
+        }
+
+        protected virtual void AddNodeMenuItems(GenericMenu menu,NodeBase nodeBase)
+        {
+            if (nodeBase.canBeDeleted)
+            {
+                menu.AddItem(new GUIContent("Delete"), false, () => { DeleteNode(nodeBase); });
+            }
+
+            menu.AddItem(new GUIContent("SetDefault"), false, () =>
+            {
+                m_SelectedNodes.Clear();
+                m_Graph.startNodeId = nodeBase.id;
+            });
+        }
+        
+        protected virtual void ShowPortContextMenu(Port port)
+        {
+            var menu = new GenericMenu();
+            AddPortMenuItems(menu,port);
+            menu.ShowAsContext();
+        }
+
+        protected virtual void AddPortMenuItems(GenericMenu menu, Port port)
+        {
+            
+        }
         #endregion
 
         #region HandleMouseMiddleClicks
@@ -603,6 +622,16 @@ namespace DaGenGraph.Editor
                     return;
                 }
 
+                if (m_ActivePort != null && m_CurrentHoveredPort == null && m_CurrentHoveredVirtualPoint == null)
+                {
+                    var port = m_ActivePort;
+                    ShowPortContextMenu(port);
+                    m_ActivePort = null; //clear the active socket
+                    m_Mode = GraphMode.None; //set the graph in idle mode
+                    current.Use();
+                    return;
+                }
+
                 //it a connecting process was under way -> clear it
                 //lifted left mouse button, but no virtual point was under the mouse position
                 if (m_Mode == GraphMode.Connect)
@@ -791,7 +820,7 @@ namespace DaGenGraph.Editor
             m_StartSelectPoint = null;
         }
 
-        private void ConnectPorts(Port outputPort, Port inputPort)
+        protected void ConnectPorts(Port outputPort, Port inputPort)
         {
             if (outputPort.overrideConnection) DisconnectPort(outputPort);
             if (inputPort.overrideConnection) DisconnectPort(inputPort);
@@ -937,6 +966,46 @@ namespace DaGenGraph.Editor
             UpdateNodesSelectedState(m_SelectedNodes);
         }
 
+        protected virtual void DeleteNode(NodeBase node)
+        {
+            if (node == null || !node.canBeDeleted) return;
+            var startNode = m_Graph.GetStartNode();
+            //disconnect all the nodes that need to be deleted
+
+            foreach (EdgeView edgeView in edgeViews.Values)
+            {
+                if (edgeView == null) continue;
+
+                if (edgeView.inputNode == node && edgeView.outputPort != null)
+                {
+                    edgeView.outputPort.DisconnectFromNode(node.id);
+                }
+
+                if (edgeView.outputNode == node && edgeView.inputPort != null)
+                {
+                    edgeView.inputPort.DisconnectFromNode(node.id);
+                }
+            }
+
+            //at this point the nodes have been disconnected
+            //'delete' the nodes by adding them the the DeletedNodes list
+            m_Graph.nodes.Remove(node.id);
+            nodeViews.Remove(node.id);
+
+            DeselectAll();
+            if (startNode == node)
+            {
+                if (m_Graph.nodes.Count > 0)
+                {
+                    m_Graph.startNodeId = m_Graph.nodes.First().Value.id;
+                }
+                else
+                {
+                    m_Graph.startNodeId = null;
+                }
+            }
+        }
+
         protected virtual void DeleteNodes(List<NodeBase> nodes)
         {
             if (nodes == null || nodes.Count == 0) return;
@@ -985,33 +1054,26 @@ namespace DaGenGraph.Editor
                     m_Graph.startNodeId = null;
                 }
             }
-
-            if (m_Graph.nodes.Values.Count(n => !string.IsNullOrEmpty(n.id)) != 1) return;
-            m_Graph.startNodeId = m_Graph.nodes.First().Value.id;
         }
 
-        protected virtual NodeBase CreateNode(Vector2 pos, string _name = "Node")
+        protected virtual NodeView CreateNodeView(NodeBase node)
         {
-            var node = new NodeBase();
-            node.InitNode(m_Graph, WorldToGridPosition(pos), _name);
-            node.AddDefaultPorts();
-            return node;
-        }
-
-        protected virtual void AddNode(NodeBase node)
-        {
-            if (node == null) return;
-            var nodeView = new NodeView();
+            if (node == null) return null;
+            var typeAttributes = node.GetType().GetCustomAttributes(true);
+            Type viewType = typeof(NodeView);
+            foreach (var attr in typeAttributes)
+            {
+                if (attr is NodeViewTypeAttribute nodeViewTypeAttribute && viewType.IsAssignableFrom(nodeViewTypeAttribute.ViewType))
+                {
+                    viewType = nodeViewTypeAttribute.ViewType;
+                    break;
+                }
+            }
+            var nodeView = Activator.CreateInstance(viewType) as NodeView;
+            if (nodeView == null) return null;
             nodeView.Init(++m_Graph.windowID, node, m_Graph, this);
             m_NodeViews.Add(node.id, nodeView);
-            if (!m_Graph.nodes.Values.ToList().Exists(n => n.id == node.id))
-            {
-                m_Graph.nodes.Add(node.id, node);
-            }
-
-            if (m_Graph.nodes.Values.Count(n => !string.IsNullOrEmpty(n.id)) != 1) return;
-            var uiNode = m_Graph.nodes.First().Value;
-            m_Graph.startNodeId = uiNode.id;
+            return nodeView;
         }
 
         protected virtual void RemovePort(Port port)
@@ -1037,7 +1099,7 @@ namespace DaGenGraph.Editor
             m_Graph = graphBase;
             foreach (var item in m_Graph.nodes)
             {
-                AddNode(item.Value);
+                CreateNodeView(item.Value);
             }
         }
         protected abstract GraphBase LoadGraphBase();
@@ -1048,6 +1110,10 @@ namespace DaGenGraph.Editor
             if (graphBase == null) return;
             nodeViews.Clear();
             m_Graph = graphBase;
+            foreach (var item in m_Graph.nodes)
+            {
+                CreateNodeView(item.Value);
+            }
         }
 
         protected abstract GraphBase CreateGraphBase();

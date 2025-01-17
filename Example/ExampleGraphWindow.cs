@@ -84,5 +84,31 @@ namespace DaGenGraph.Example
             }));
             AssetDatabase.Refresh();
         }
+        
+        protected override void AddGraphMenuItems(GenericMenu menu)
+        {
+            var current = Event.current;
+            base.AddGraphMenuItems(menu);
+            menu.AddItem(new GUIContent("New/Node"), false, () =>
+            {
+                if (m_Graph == null) InitGraph();
+                CreateNodeView(m_Graph.CreateNode<ExampleNode>(current.mousePosition));
+            });
+        }
+
+        protected override void AddNodeMenuItems(GenericMenu menu, NodeBase nodeBase)
+        {
+            base.AddNodeMenuItems(menu, nodeBase);
+            menu.AddItem(new GUIContent("AddInputPort"), false,
+                () => { nodeBase.AddInputPort("InputName", EdgeMode.Multiple, true, true); });
+            menu.AddItem(new GUIContent("AddOutputPort"), false,
+                () => { nodeBase.AddOutputPort("OutputName", EdgeMode.Multiple, true, true); });
+        }
+
+        protected override void AddPortMenuItems(GenericMenu menu, Port port)
+        {
+            base.AddPortMenuItems(menu, port);
+            menu.AddItem(new GUIContent("Delete"), false, () => { RemovePort(port); });
+        }
     }
 }

@@ -55,7 +55,7 @@ namespace DaGenGraph.Editor
         public Vector2 size => m_Node.GetSize();
         public Rect rect => m_Node.GetRect();
         public Rect drawRect => m_DrawRect;
-        private float dynamicHeight { get; set; }
+        protected float dynamicHeight { get; set; }
 
         #endregion
 
@@ -80,6 +80,7 @@ namespace DaGenGraph.Editor
         private static GUIStyle nodeHorizontalDivider =>
             s_NodeHorizontalDivider ??= Styles.GetStyle("NodeHorizontalDivider");
 
+        private static GUIStyle nodeInputText = new GUIStyle(){alignment = TextAnchor.MiddleLeft, fontSize = 16};
         #endregion
 
         #region Static Variables
@@ -284,9 +285,14 @@ namespace DaGenGraph.Editor
         protected void DrawNodePorts()
         {
             DrawPortsList(node.inputPorts);
+            
+            DrawContent();
             DrawPortsList(node.outputPorts);
         }
-
+        protected virtual void DrawContent()
+        {
+            
+        }
         protected void DrawPortsList(List<Port> ports)
         {
             if (ports == null) return;
@@ -367,5 +373,51 @@ namespace DaGenGraph.Editor
         }
 
         #endregion
+
+        #region DrawProp
+        
+        protected string DrawPropString(string name, string val, float height = 24)
+        {
+            GUILayout.BeginHorizontal();
+            var rect1 = new Rect(10, dynamicHeight, 70, height);
+            GUI.Label(rect1, name);
+            var rect2 = new Rect(72, dynamicHeight,  m_DrawRect.width - 83, height);
+            var res = GUI.TextField(rect2, val, nodeInputText);
+            GUILayout.EndHorizontal();
+            dynamicHeight += height;
+            return res;
+        }
+
+        protected void DrawPropEnum<T>(string name, T val, Action<T> onValueChange, float height = 24) where T : Enum
+        {
+            GUILayout.BeginHorizontal();
+            var rect1 = new Rect(10, dynamicHeight, 70, height);
+            GUI.Label(rect1, name);
+            var rect2 = new Rect(72, dynamicHeight + 2,  m_DrawRect.width - 83, height-4);
+            if (GUI.Button(rect2, val.ToString()))
+            {
+                var menu = new GenericMenu();
+                var names = Enum.GetNames(val.GetType());
+                var values = Enum.GetValues(val.GetType());
+                for (int i = 0; i < names.Length; i++)
+                {
+                    var value = (T)values.GetValue(i);
+                    menu.AddItem(new GUIContent(names[i]), value.Equals(val), () =>
+                    {
+                        onValueChange?.Invoke(value);
+                    });
+                }
+                menu.ShowAsContext();
+            }
+            GUILayout.EndHorizontal();
+            dynamicHeight += height;
+        }
+        
+        #endregion
+    }
+
+    public abstract class NodeView<T> : NodeView where T : NodeBase
+    {
+        public T node => base.node as T;
     }
 }

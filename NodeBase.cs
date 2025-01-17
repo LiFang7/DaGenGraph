@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace DaGenGraph
 {
     [Serializable]
-    public class NodeBase
+    public abstract class NodeBase
     {
         #region public Variables
 
@@ -20,7 +21,7 @@ namespace DaGenGraph
         public float y;
         public int minimumInputPortsCount;
         public int minimumOutputPortsCount;
-        public string graphId;
+
         public string id;
         public string name;
 
@@ -104,10 +105,6 @@ namespace DaGenGraph
 
         #region Protected  Methods
 
-        protected virtual void OnEnable()
-        {
-            id = Guid.NewGuid().ToString();
-        }
 
         /// <summary> Set to allow this node to have an empty node name </summary>
         /// <param name="value"> Disable error for empty node name </param>
@@ -122,29 +119,7 @@ namespace DaGenGraph
         {
             allowDuplicateNodeName = value;
         }
-
-
-        /// <summary> OnEnterNode is called on the frame when this node becomes active just before any of the node's Update methods are called for the first time </summary>
-        /// <param name="previousActiveNode"> The node that was active before this one </param>
-        /// <param name="edge"> The edge that activated this node </param>
-        public virtual void OnEnter(NodeBase previousActiveNode, Edge edge)
-        {
-            ping = true;
-        }
-
-        /// <summary> OnExitNode is called just before this node becomes inactive </summary>
-        /// <param name="nextActiveNode"> The node that will become active next</param>
-        /// <param name="edge"> The edge that activates the next node </param>
-        public virtual void OnExit(NodeBase nextActiveNode, Edge edge)
-        {
-            ping = false;
-            if (edge != null)
-            {
-                edge.ping = true;
-                edge.reSetTime = true;
-            }
-        }
-
+        
         #endregion
 
         #region Public Methods
@@ -510,33 +485,43 @@ namespace DaGenGraph
 
         #region Public virtual Methods
 
-        public virtual void InitNode(GraphBase graph, Vector2 pos, string name, int minimumInputPortsCount = 1,
-            int minimumOutputPortsCount = 0)
+        /// <summary> OnEnterNode is called on the frame when this node becomes active just before any of the node's Update methods are called for the first time </summary>
+        /// <param name="previousActiveNode"> The node that was active before this one </param>
+        /// <param name="edge"> The edge that activated this node </param>
+        public virtual void OnEnter(NodeBase previousActiveNode, Edge edge)
         {
-            this.name = name;
+            ping = true;
+        }
+
+        /// <summary> OnExitNode is called just before this node becomes inactive </summary>
+        /// <param name="nextActiveNode"> The node that will become active next</param>
+        /// <param name="edge"> The edge that activates the next node </param>
+        public virtual void OnExit(NodeBase nextActiveNode, Edge edge)
+        {
+            ping = false;
+            if (edge != null)
+            {
+                edge.ping = true;
+                edge.reSetTime = true;
+            }
+        }
+        
+        public virtual void InitNode(Vector2 pos, string nodeName, int minInputPortsCount = 1, int minOutputPortsCount = 0)
+        {
+            name = nodeName;
             GenerateNewId();
-            graphId = graph.guid;
             inputPorts = new List<Port>();
             outputPorts = new List<Port>();
             canBeDeleted = true;
-            this.minimumInputPortsCount = minimumInputPortsCount;
-            this.minimumOutputPortsCount = minimumOutputPortsCount;
+            this.minimumInputPortsCount = minInputPortsCount;
+            this.minimumOutputPortsCount = minOutputPortsCount;
             x = pos.x;
             y = pos.y;
             width = 216f;
             height = 216f;
         }
 
-        public virtual void AddDefaultPorts()
-        {
-            AddInputPort(EdgeMode.Multiple, false, false);
-            //AddOutputPort(EdgeMode.Override, true, true);
-        }
-
-        public virtual void Save()
-        {
-            //序列化文件
-        }
+        public abstract void AddDefaultPorts();
 
         #endregion
     }
