@@ -1,40 +1,38 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor;
 using UnityEngine;
 
 namespace DaGenGraph
 {
     [Serializable]
-    public abstract class NodeBase
+    public abstract class NodeBase: ScriptableObject
     {
         #region public Variables
 
-        public List<Port> inputPorts;
-        public List<Port> outputPorts;
-        public bool allowDuplicateNodeName;
-        public bool allowEmptyNodeName;
-        public bool canBeDeleted;
-        public float height;
-        public float width;
-        public float x;
-        public float y;
-        public int minimumInputPortsCount;
-        public int minimumOutputPortsCount;
+        [DrawIgnore] public List<Port> inputPorts;
+        [DrawIgnore] public List<Port> outputPorts;
+        [DrawIgnore] public bool allowDuplicateNodeName;
+        [DrawIgnore] public bool allowEmptyNodeName;
+        [DrawIgnore] public bool canBeDeleted;
+        [DrawIgnore] public float height;
+        [DrawIgnore] public float width;
+        [DrawIgnore] public float x;
+        [DrawIgnore] public float y;
+        [DrawIgnore] public int minimumInputPortsCount;
+        [DrawIgnore] public int minimumOutputPortsCount;
+        [DrawIgnore] public string id;
+        [DrawIgnore] public bool isHovered;
+        [DrawIgnore] public bool errorNodeNameIsEmpty;
+        [DrawIgnore] public bool errorDuplicateNameFoundInGraph;
 
-        public string id;
-        public string name;
-
-        public bool isHovered;
-        public bool errorNodeNameIsEmpty;
-        public bool errorDuplicateNameFoundInGraph;
-        
         /// <summary> Trigger a visual cue for this node, in the Editor, at runtime. Mostly used when this node has been activated </summary>
-        public bool ping;
-        
-        public DeletePort onDeletePort;
+        [DrawIgnore] public bool ping;
 
-        public delegate void DeletePort(Port port);
+        public event DeletePortDelegate onDeletePort;
+
+        public delegate void DeletePortDelegate(Port port);
 
         #endregion
 
@@ -48,37 +46,6 @@ namespace DaGenGraph
 
         /// <summary> Returns the first output port. If there isn't one, it returns null </summary>
         public Port GetFirstOutputPort() => outputPorts.Count > 0 ? outputPorts[0] : null;
-
-
-        /// <summary> Returns this node's outputNodeIds </summary>
-        public List<string> GetOutputNodeIds()
-        {
-            var nodes = new List<string>();
-            foreach (var port in outputPorts)
-            {
-                foreach (var edge in port.edges)
-                {
-                    nodes.Add(edge.outputNodeId);
-                }
-            }
-
-            return nodes;
-        }
-
-        /// <summary> Returns this node's inputNodeIds </summary>
-        public List<string> GetInputNodeIds()
-        {
-            var nodes = new List<string>();
-            foreach (var port in inputPorts)
-            {
-                foreach (var edge in port.edges)
-                {
-                    nodes.Add(edge.inputNodeId);
-                }
-            }
-
-            return nodes;
-        }
         
 
         private void CheckThatNodeNameIsNotEmpty()
@@ -119,7 +86,7 @@ namespace DaGenGraph
         {
             allowDuplicateNodeName = value;
         }
-        
+
         #endregion
 
         #region Public Methods
@@ -365,29 +332,25 @@ namespace DaGenGraph
         /// <param name="edgeId"> Target edge id </param>
         public bool ContainsEdge(string edgeId)
         {
-            return GetEdge(edgeId) != null;
-        }
-
-        /// <summary> Returns a edge, from this node, with the matching edge id. Returns null if no edge with the given id is found </summary>
-        /// <param name="edgeId"> Target edge id </param>
-        public Edge GetEdge(string edgeId)
-        {
-            Edge edge;
             foreach (var port in inputPorts)
             {
-                edge = port.GetEdge(edgeId);
-                if (edge != null) return edge;
+                if (port.edges.Contains(edgeId)) return true;
             }
 
             foreach (var port in outputPorts)
             {
-                edge = port.GetEdge(edgeId);
-                if (edge != null) return edge;
+                if (port.edges.Contains(edgeId)) return true;
             }
-
-            return null;
+            return false;
         }
 
+        public void DeletePort(Port port)
+        {
+            if (port.isInput) inputPorts.Remove(port);
+            if (port.isOutput) outputPorts.Remove(port);
+            onDeletePort?.Invoke(port);
+            DeletePortBase(port);
+        }
         #endregion
 
         #region Private Methods
@@ -430,8 +393,8 @@ namespace DaGenGraph
                         portName = "InputPort_" + counter++;
                     }
 
-                    var inputPort = new Port(this, id, portName, direction, edgeMode, edgePoints, canBeDeleted,
-                        canBeReordered);
+                    var inputPort = CreatePortBase();
+                    inputPort.Init(this, portName, direction, edgeMode, edgePoints, canBeDeleted, canBeReordered);
                     inputPorts.Add(inputPort);
                     return inputPort;
                 case PortDirection.Output:
@@ -447,9 +410,8 @@ namespace DaGenGraph
                     {
                         portName = "OutputPort_" + counter++;
                     }
-
-                    var outputPort = new Port(this, "", portName, direction, edgeMode, edgePoints, canBeDeleted,
-                        canBeReordered);
+                    var outputPort = CreatePortBase();
+                    outputPort.Init(this, portName, direction, edgeMode, edgePoints, canBeDeleted, canBeReordered);
                     outputPorts.Add(outputPort);
                     return outputPort;
                 default:
@@ -484,6 +446,19 @@ namespace DaGenGraph
         #endregion
 
         #region Public virtual Methods
+        
+        protected virtual Port CreatePortBase() 
+        {
+            var node = CreateInstance<Port>();
+            node.name = "Port";
+            AssetDatabase.AddObjectToAsset(node,this);
+            return node;
+        }
+        
+        protected virtual void DeletePortBase(Port port)
+        {
+            DestroyImmediate(port,true);
+        }
 
         /// <summary> OnEnterNode is called on the frame when this node becomes active just before any of the node's Update methods are called for the first time </summary>
         /// <param name="previousActiveNode"> The node that was active before this one </param>
@@ -506,7 +481,7 @@ namespace DaGenGraph
             }
         }
         
-        public virtual void InitNode(Vector2 pos, string nodeName, int minInputPortsCount = 1, int minOutputPortsCount = 0)
+        public virtual void InitNode(Vector2 pos, string nodeName, int minInputPortsCount = 0, int minOutputPortsCount = 0)
         {
             name = nodeName;
             GenerateNewId();
@@ -517,8 +492,8 @@ namespace DaGenGraph
             this.minimumOutputPortsCount = minOutputPortsCount;
             x = pos.x;
             y = pos.y;
-            width = 216f;
-            height = 216f;
+            width = 260f;
+            height = 200f;
         }
 
         public abstract void AddDefaultPorts();

@@ -24,7 +24,7 @@ namespace DaGenGraph.Editor
         private Dictionary<string, List<VirtualPoint>> m_Points;
         private Dictionary<string, Port> m_Ports;
         private Dictionary<string, EdgeView> m_EdgeViews;
-
+        private string m_SelectedNodeId;
         private float currentZoom
         {
             get
@@ -56,7 +56,8 @@ namespace DaGenGraph.Editor
                 {
                     for (int i = port.edges.Count - 1; i >= 0; i--)
                     {
-                        var edge = port.edges[i];
+                        var edgeId = port.edges[i];
+                        var edge = m_Graph.GetEdge(edgeId);
                         if (edge == null)
                         {
                             port.edges.RemoveAt(i);
@@ -145,23 +146,31 @@ namespace DaGenGraph.Editor
                 m_Points = new Dictionary<string, List<VirtualPoint>>();
                 foreach (var nodeView in nodeViews.Values)
                 {
-                    foreach (var port in nodeView.node.inputPorts)
+                    if (nodeView.node.inputPorts != null)
                     {
-                        m_Points.Add(port.id, new List<VirtualPoint>());
-                        foreach (var point in port.edgePoints)
+                        foreach (var port in nodeView.node.inputPorts)
                         {
-                            m_Points[port.id].Add(new VirtualPoint(nodeViews[port.nodeId].node, port,
-                                point + m_Graph.currentPanOffset / currentZoom, point));
+                            if(port==null) continue;
+                            m_Points.Add(port.id, new List<VirtualPoint>());
+                            foreach (var point in port.edgePoints)
+                            {
+                                m_Points[port.id].Add(new VirtualPoint(nodeViews[port.nodeId].node, port,
+                                    point + m_Graph.currentPanOffset / currentZoom, point));
+                            }
                         }
                     }
 
-                    foreach (var port in nodeView.node.outputPorts)
+                    if (nodeView.node.outputPorts != null)
                     {
-                        m_Points.Add(port.id, new List<VirtualPoint>());
-                        foreach (var point in port.edgePoints)
+                        foreach (var port in nodeView.node.outputPorts)
                         {
-                            m_Points[port.id].Add(new VirtualPoint(nodeViews[port.nodeId].node, port,
-                                point + m_Graph.currentPanOffset / currentZoom, point));
+                            if(port==null) continue;
+                            m_Points.Add(port.id, new List<VirtualPoint>());
+                            foreach (var point in port.edgePoints)
+                            {
+                                m_Points[port.id].Add(new VirtualPoint(nodeViews[port.nodeId].node, port,
+                                    point + m_Graph.currentPanOffset / currentZoom, point));
+                            }
                         }
                     }
                 }
@@ -225,9 +234,13 @@ namespace DaGenGraph.Editor
 
         private void DrawViewGraph()
         {
+            float width = 0;
+            if (!string.IsNullOrEmpty(m_SelectedNodeId) && nodeViews.TryGetValue(m_SelectedNodeId, out var view))
+                width = Mathf.Max(300, position.width * 0.2f);
             ConstructGraphGUI();
-            var graphArea = new Rect(0, 0, position.width, position.height);
+            var graphArea = new Rect(0, 0, position.width - width, position.height);
             GraphBackground.DrawGrid(graphArea, currentZoom, Vector2.zero);
+            DrawInspector(width);
             m_GraphAreaIncludingTab =
                 new Rect(0, 20, position.width, position.height);
             m_ScaledGraphArea = new Rect(0, 0,
@@ -253,7 +266,7 @@ namespace DaGenGraph.Editor
             GUI.BeginClip(m_GraphAreaIncludingTab);
             GUI.matrix = initialMatrix; //reset the matrix to the initial value
             DrawToolbar();
-            //DrawInspector();
+
             HandleZoom();
             HandlePanning();
             HandleMouseRightClicks();
@@ -641,6 +654,7 @@ namespace DaGenGraph.Editor
     
     public abstract partial class GraphWindow<T> : GraphWindow where T : GraphBase
     {
+        public T m_Graph => base.m_Graph as T;
         protected sealed override GraphBase CreateGraphBase()
         {
             return CreateGraph();

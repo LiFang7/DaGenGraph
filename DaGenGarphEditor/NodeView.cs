@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace DaGenGraph.Editor
 {
@@ -13,13 +16,6 @@ namespace DaGenGraph.Editor
         private GraphWindow m_graphWindow;
         private int m_WindowId;
         private GraphBase m_Graph;
-        private GUIStyle m_CurrentStyle;
-        private GUIStyle m_NormalStyle;
-        private GUIStyle m_SelectedStyle;
-        private GUIStyle m_CurrentHeaderStyle;
-        private GUIStyle m_HeaderNormalStyle;
-        private GUIStyle m_HeaderSelectedStyle;
-        private GUIStyle m_IconStyle;
         private Vector2 m_DeleteButtonSize;
         private Vector2 m_Offset;
         private Rect m_DrawRect;
@@ -39,6 +35,8 @@ namespace DaGenGraph.Editor
         private Color m_NodeBodyColor;
         private Color m_NodeOutlineColor;
         private Color m_HeaderTextAndIconColor;
+
+        private HashSet<FieldInfo> foldoutState = new HashSet<FieldInfo>();
 
         #endregion
 
@@ -79,8 +77,7 @@ namespace DaGenGraph.Editor
 
         private static GUIStyle nodeHorizontalDivider =>
             s_NodeHorizontalDivider ??= Styles.GetStyle("NodeHorizontalDivider");
-
-        private static GUIStyle nodeInputText = new GUIStyle(){alignment = TextAnchor.MiddleLeft, fontSize = 16};
+        
         #endregion
 
         #region Static Variables
@@ -105,6 +102,11 @@ namespace DaGenGraph.Editor
         {
         }
 
+        public virtual void OnUnFocus(EditorWindow window)
+        {
+            GUI.FocusControl(null);
+        }
+
         protected virtual void OnNodeGUI()
         {
             DrawNodeBody();
@@ -113,7 +115,7 @@ namespace DaGenGraph.Editor
 
         protected virtual GUIStyle GetIconStyle()
         {
-            return m_IconStyle ??= nodeDot;
+            return nodeDot;
         }
 
         protected virtual Rect DrawPort(Port port)
@@ -285,14 +287,14 @@ namespace DaGenGraph.Editor
         protected void DrawNodePorts()
         {
             DrawPortsList(node.inputPorts);
-            
-            DrawContent();
+            var inspectorArea = new Rect(20, dynamicHeight + 5, width - 40, height);
+            GUILayout.BeginArea(inspectorArea);
+            dynamicHeight += DrawInspector();
+            GUILayout.EndArea();
+            dynamicHeight += 5;
             DrawPortsList(node.outputPorts);
         }
-        protected virtual void DrawContent()
-        {
-            
-        }
+
         protected void DrawPortsList(List<Port> ports)
         {
             if (ports == null) return;
@@ -330,6 +332,187 @@ namespace DaGenGraph.Editor
             GUI.Window(m_WindowId, clientRect, DrawNode, string.Empty, nodeArea);
         }
 
+        public virtual float DrawInspector(bool isDetails = false)
+        {
+            return DrawObjectInspector(node, isDetails);
+        }
+
+        protected virtual float DrawObjectInspector(object obj, bool isDetails = false)
+        {
+            float height = 0;
+            if (obj == null) return height;
+            var fields = obj.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance);
+
+            foreach (var field in fields)
+            {
+                height += DrawObjectFieldInspector(field, obj, isDetails);
+            }
+
+            return height;
+        }
+
+        protected virtual float DrawObjectFieldInspector(FieldInfo field, object obj, bool isDetails = false)
+        {
+            var attribute = field.GetCustomAttribute(typeof(DrawIgnoreAttribute));
+            if (attribute is DrawIgnoreAttribute ignoreAttribute)
+            {
+                if (ignoreAttribute.Ignore == Ignore.All) return 0;
+                if (ignoreAttribute.Ignore == Ignore.Details == isDetails) return 0;
+            }
+            if (field.GetCustomAttribute(typeof(HideInInspector)) is HideInInspector)
+            {
+                return 0;
+            }
+
+            float height = 0;
+            if (field.GetCustomAttribute(typeof(TooltipAttribute)) is TooltipAttribute tooltip)
+            {
+                EditorGUILayout.HelpBox(tooltip.tooltip,MessageType.Info);
+                height += 40;
+            }
+            if (field.GetCustomAttribute(typeof(HeaderAttribute)) is HeaderAttribute header)
+            {
+                EditorGUILayout.LabelField(header.header);
+                height += 20;
+            }
+            if (field.GetCustomAttribute(typeof(SpaceAttribute)) is SpaceAttribute space)
+            {
+                EditorGUILayout.Space(space.height);
+                height += space.height;
+            }
+            object value = field.GetValue(obj);
+            // 显示字段名称和对应的值
+            if (field.FieldType == typeof(string))
+            {
+                field.SetValue(obj, EditorGUILayout.TextField(field.Name, (string) value,GUILayout.ExpandWidth(true)));
+            }
+            else if (field.FieldType == typeof(int))
+            {
+                int val = 0;
+                if (isDetails && field.GetCustomAttribute(typeof(RangeAttribute)) is RangeAttribute rangeAttr)
+                {
+                    val = EditorGUILayout.IntSlider(field.Name, (int) value, Mathf.CeilToInt(rangeAttr.min),
+                        Mathf.FloorToInt(rangeAttr.max));
+                }
+                else
+                {
+                    val = EditorGUILayout.IntField(field.Name, (int) value);
+                }
+                var min = field.GetCustomAttribute(typeof(MinAttribute));
+                if (min is MinAttribute minAttr && val<minAttr.min)
+                {
+                    val = Mathf.CeilToInt(minAttr.min);
+                }
+                field.SetValue(obj, val);
+            }
+            else if (field.FieldType == typeof(float))
+            {
+                float val = 0;
+                if (isDetails && field.GetCustomAttribute(typeof(RangeAttribute)) is RangeAttribute rangeAttr)
+                {
+                    val = EditorGUILayout.Slider(field.Name, (float) value, rangeAttr.min, rangeAttr.max);
+                }
+                else
+                {
+                    val = EditorGUILayout.FloatField(field.Name, (float) value);
+                }
+                var min = field.GetCustomAttribute(typeof(MinAttribute));
+                if (min is MinAttribute minAttr && val<minAttr.min)
+                {
+                    val = minAttr.min;
+                }
+                field.SetValue(obj, val);
+            }
+            else if (field.FieldType == typeof(bool))
+            {
+                field.SetValue(obj, EditorGUILayout.Toggle(field.Name, (bool) value));
+            }
+            else if (field.FieldType.IsEnum)
+            {
+                field.SetValue(obj, EditorGUILayout.EnumPopup(field.Name, (Enum) value));
+            }
+            else if (field.FieldType == typeof(Vector2))
+            {
+                field.SetValue(obj, EditorGUILayout.Vector2Field(field.Name, (Vector2) value));
+                height += 20;
+            }
+            else if (field.FieldType == typeof(Vector3))
+            {
+                field.SetValue(obj, EditorGUILayout.Vector3Field(field.Name, (Vector3) value));
+                height += 20;
+            }
+            else if (field.FieldType == typeof(Vector4))
+            {
+                field.SetValue(obj, EditorGUILayout.Vector4Field(field.Name, (Vector4) value));
+                height += 20;
+            }
+            else if (field.FieldType == typeof(Rect))
+            {
+                field.SetValue(obj, EditorGUILayout.RectField(field.Name, (Rect) value));
+                height += 40;
+            }
+            else if (field.FieldType == typeof(Color))
+            {
+                field.SetValue(obj, EditorGUILayout.ColorField(field.Name, (Color) value));
+            }
+            else if (typeof(Object).IsAssignableFrom(field.FieldType)
+                     && !(field.GetCustomAttribute(typeof(NotAssetsAttribute)) is NotAssetsAttribute))
+            {
+                if (typeof(Sprite).IsAssignableFrom(field.FieldType) ||
+                    typeof(Texture).IsAssignableFrom(field.FieldType))
+                    height += 40;
+                var newObj = EditorGUILayout.ObjectField(field.Name, (Object) value, field.FieldType, false);
+                field.SetValue(obj, newObj);
+            }
+            else if (field.FieldType == typeof(AnimationCurve))
+            {
+                var res = EditorGUILayout.CurveField(field.Name, (AnimationCurve) value);
+                if (res == null) res = new AnimationCurve();
+                field.SetValue(obj, res);
+            }
+            else if (field.FieldType.IsClass)
+            {
+                if (value == null)
+                {
+                    var types = TypeHelper.GetSubClassList(field.FieldType,out var namse);
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField(field.Name, GUILayout.Width(150));
+                    var index = EditorGUILayout.Popup(-1, namse);
+                    EditorGUILayout.EndHorizontal();
+                    if (index >= 0)
+                    {
+                        value = Activator.CreateInstance(types[index]);
+                        field.SetValue(obj, value);
+                    }
+                    else
+                    {
+                        height += 20;
+                        return height;
+                    }
+                }
+                bool foldout = foldoutState.Contains(field);
+                EditorGUILayout.BeginHorizontal();
+                foldout = EditorGUILayout.Foldout(foldout, field.Name);
+                if (GUILayout.Button("置空"))
+                {
+                    field.SetValue(obj, null);
+                }
+                EditorGUILayout.EndHorizontal();
+                if (foldout)
+                {
+                    EditorGUI.indentLevel++;
+                    height += DrawObjectInspector(value, isDetails);
+                    EditorGUI.indentLevel--;
+                    foldoutState.Add(field);
+                }
+                else
+                {
+                    foldoutState.Remove(field);
+                }
+            }
+            height += 20;
+            return height + 1;
+        }
         #endregion
 
         #region Private Methods
@@ -374,46 +557,6 @@ namespace DaGenGraph.Editor
 
         #endregion
 
-        #region DrawProp
-        
-        protected string DrawPropString(string name, string val, float height = 24)
-        {
-            GUILayout.BeginHorizontal();
-            var rect1 = new Rect(10, dynamicHeight, 70, height);
-            GUI.Label(rect1, name);
-            var rect2 = new Rect(72, dynamicHeight,  m_DrawRect.width - 83, height);
-            var res = GUI.TextField(rect2, val, nodeInputText);
-            GUILayout.EndHorizontal();
-            dynamicHeight += height;
-            return res;
-        }
-
-        protected void DrawPropEnum<T>(string name, T val, Action<T> onValueChange, float height = 24) where T : Enum
-        {
-            GUILayout.BeginHorizontal();
-            var rect1 = new Rect(10, dynamicHeight, 70, height);
-            GUI.Label(rect1, name);
-            var rect2 = new Rect(72, dynamicHeight + 2,  m_DrawRect.width - 83, height-4);
-            if (GUI.Button(rect2, val.ToString()))
-            {
-                var menu = new GenericMenu();
-                var names = Enum.GetNames(val.GetType());
-                var values = Enum.GetValues(val.GetType());
-                for (int i = 0; i < names.Length; i++)
-                {
-                    var value = (T)values.GetValue(i);
-                    menu.AddItem(new GUIContent(names[i]), value.Equals(val), () =>
-                    {
-                        onValueChange?.Invoke(value);
-                    });
-                }
-                menu.ShowAsContext();
-            }
-            GUILayout.EndHorizontal();
-            dynamicHeight += height;
-        }
-        
-        #endregion
     }
 
     public abstract class NodeView<T> : NodeView where T : NodeBase

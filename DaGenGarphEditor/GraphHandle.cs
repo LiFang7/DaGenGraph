@@ -160,7 +160,7 @@ namespace DaGenGraph.Editor
                     nodeViews[m_CurrentHoveredPort.nodeId].node.CanDeletePort(m_CurrentHoveredPort))
                 {
                     m_CurrentHoveredPort.showHover.target = true;
-                    m_CurrentHoveredNode = m_Graph.nodes[m_CurrentHoveredPort.nodeId];
+                    m_CurrentHoveredNode = m_Graph.FindNode(m_CurrentHoveredPort.nodeId);
                 }
 
                 Repaint();
@@ -351,14 +351,14 @@ namespace DaGenGraph.Editor
             });
         }
         
-        protected virtual void ShowPortContextMenu(Port port)
+        protected virtual void ShowPortContextMenu(Port port, bool isLine = false)
         {
             var menu = new GenericMenu();
-            AddPortMenuItems(menu,port);
+            AddPortMenuItems(menu,port,isLine);
             menu.ShowAsContext();
         }
 
-        protected virtual void AddPortMenuItems(GenericMenu menu, Port port)
+        protected virtual void AddPortMenuItems(GenericMenu menu, Port port, bool isLine = false)
         {
             
         }
@@ -511,12 +511,12 @@ namespace DaGenGraph.Editor
                     //mouse is over a socket -> color the line to green if connection is possible or red otherwise
                     if (m_CurrentHoveredPort != null)
                     {
-                        m_CreateEdgeLineColor = m_ActivePort.CanConnect(m_CurrentHoveredPort) ? Color.green : Color.red;
+                        m_CreateEdgeLineColor = m_ActivePort.CanConnect(m_CurrentHoveredPort,m_Graph) ? Color.green : Color.red;
                     }
                     //mouse is over a socket connection point -> color the line to green if connection is possible or red otherwise   
                     else if (m_CurrentHoveredVirtualPoint != null)
                     {
-                        m_CreateEdgeLineColor = m_ActivePort.CanConnect(m_CurrentHoveredVirtualPoint.port)
+                        m_CreateEdgeLineColor = m_ActivePort.CanConnect(m_CurrentHoveredVirtualPoint.port,m_Graph)
                             ? Color.green
                             : Color.red;
                     }
@@ -562,6 +562,14 @@ namespace DaGenGraph.Editor
                     }
                 }
 
+                foreach (var item in m_NodeViews)
+                {
+                    if (item.Key != m_PreviousHoveredNode?.id)
+                    {
+                        item.Value.OnUnFocus(this);
+                    }
+                }
+
                 //lifted left mouse button and was panning (space key was/is down) -> reset graph to idle
                 if (m_Mode == GraphMode.Pan)
                 {
@@ -594,7 +602,7 @@ namespace DaGenGraph.Editor
                     //lifted left mouse button over a socket
                     if (m_ActivePort != null && //if there is an active socket
                         m_ActivePort != m_CurrentHoveredPort && //and it's not this one
-                        m_ActivePort.CanConnect(m_CurrentHoveredPort)) //and the two sockets can get connected
+                        m_ActivePort.CanConnect(m_CurrentHoveredPort,m_Graph)) //and the two sockets can get connected
                     {
                         ConnectPorts(m_ActivePort, m_CurrentHoveredPort); //connect the two sockets
                     }
@@ -610,8 +618,7 @@ namespace DaGenGraph.Editor
                     //lifted left mouse button over a socket connection point
                     if (m_ActivePort != null && //if there is an active socket
                         m_ActivePort != m_CurrentHoveredVirtualPoint.port && //and it's not this one
-                        m_ActivePort.CanConnect(m_CurrentHoveredVirtualPoint
-                            .port)) //and the two sockets can get connected
+                        m_ActivePort.CanConnect(m_CurrentHoveredVirtualPoint.port,m_Graph)) //and the two sockets can get connected
                     {
                         ConnectPorts(m_ActivePort, m_CurrentHoveredVirtualPoint.port); //connect the two sockets
                     }
@@ -625,7 +632,7 @@ namespace DaGenGraph.Editor
                 if (m_ActivePort != null && m_CurrentHoveredPort == null && m_CurrentHoveredVirtualPoint == null)
                 {
                     var port = m_ActivePort;
-                    ShowPortContextMenu(port);
+                    ShowPortContextMenu(port, true);
                     m_ActivePort = null; //clear the active socket
                     m_Mode = GraphMode.None; //set the graph in idle mode
                     current.Use();
@@ -839,9 +846,7 @@ namespace DaGenGraph.Editor
                 inputPort.Disconnect();
             }
 
-            var edge = new Edge(outputPort, inputPort);
-            outputPort.edges.Add(edge);
-            inputPort.edges.Add(edge);
+            graph.CreateEdge(outputPort, inputPort);
         }
 
         private void DisconnectPort(Port port)
@@ -856,6 +861,7 @@ namespace DaGenGraph.Editor
                 if (ev == null)
                 {
                     edgeViews.Remove(edgeId);
+                    m_Graph.RemoveEdge(edgeId);
                     continue;
                 }
 
@@ -870,6 +876,7 @@ namespace DaGenGraph.Editor
                 }
 
                 edgeViews.Remove(edgeId);
+                m_Graph.RemoveEdge(edgeId);
             }
         }
 
@@ -905,16 +912,18 @@ namespace DaGenGraph.Editor
 
                 //UPDATE THE ACTUAL CONNECTION POSITIONS IN THE PORT -> we do this here as we are already doing an enumeration and is a bit more efficient no to do this twice
                 //this is a very important step, as we update the positions of the input and output connection points in the connections found on the port
-                foreach (Edge edge in ev.inputPort.edges)
-                    if (edge.id == ev.edgeId)
+                foreach (var edgeId in ev.inputPort.edges)
+                    if (edgeId == ev.edgeId)
                     {
+                        var edge = m_Graph.GetEdge(edgeId);
                         edge.inputEdgePoint = ev.inputVirtualPoint.localPointPosition;
                         edge.outputEdgePoint = ev.outputVirtualPoint.localPointPosition;
                     }
 
-                foreach (Edge edge in ev.outputPort.edges)
-                    if (edge.id == ev.edgeId)
+                foreach (var edgeId in ev.outputPort.edges)
+                    if (edgeId == ev.edgeId)
                     {
+                        var edge = m_Graph.GetEdge(edgeId);
                         edge.inputEdgePoint = ev.inputVirtualPoint.localPointPosition;
                         edge.outputEdgePoint = ev.outputVirtualPoint.localPointPosition;
                     }
@@ -962,7 +971,7 @@ namespace DaGenGraph.Editor
         private void SelectAll()
         {
             m_SelectedNodes.Clear();
-            m_SelectedNodes.AddRange(m_Graph.nodes.Values);
+            m_SelectedNodes.AddRange(m_Graph.values);
             UpdateNodesSelectedState(m_SelectedNodes);
         }
 
@@ -978,26 +987,34 @@ namespace DaGenGraph.Editor
 
                 if (edgeView.inputNode == node && edgeView.outputPort != null)
                 {
-                    edgeView.outputPort.DisconnectFromNode(node.id);
+                    edgeView.outputPort.DisconnectFromNode(node.id, m_Graph);
                 }
 
                 if (edgeView.outputNode == node && edgeView.inputPort != null)
                 {
-                    edgeView.inputPort.DisconnectFromNode(node.id);
+                    edgeView.inputPort.DisconnectFromNode(node.id, m_Graph);
                 }
             }
 
+            for (int i = node.inputPorts.Count-1; i >=0 ; i--)
+            {
+                RemovePort(node.inputPorts[i], true);
+            }
+            for (int i = node.outputPorts.Count-1; i >=0 ; i--)
+            {
+                RemovePort(node.outputPorts[i], true);
+            }
             //at this point the nodes have been disconnected
             //'delete' the nodes by adding them the the DeletedNodes list
-            m_Graph.nodes.Remove(node.id);
+            m_Graph.RemoveNode(node.id);
             nodeViews.Remove(node.id);
 
             DeselectAll();
             if (startNode == node)
             {
-                if (m_Graph.nodes.Count > 0)
+                if (m_Graph.values.Count > 0)
                 {
-                    m_Graph.startNodeId = m_Graph.nodes.First().Value.id;
+                    m_Graph.startNodeId = m_Graph.values.First().id;
                 }
                 else
                 {
@@ -1022,12 +1039,12 @@ namespace DaGenGraph.Editor
 
                     if (edgeView.inputNode == node && edgeView.outputPort != null)
                     {
-                        edgeView.outputPort.DisconnectFromNode(node.id);
+                        edgeView.outputPort.DisconnectFromNode(node.id, m_Graph);
                     }
 
                     if (edgeView.outputNode == node && edgeView.inputPort != null)
                     {
-                        edgeView.inputPort.DisconnectFromNode(node.id);
+                        edgeView.inputPort.DisconnectFromNode(node.id, m_Graph);
                     }
                 }
             }
@@ -1038,16 +1055,16 @@ namespace DaGenGraph.Editor
             {
                 if (node == null) continue;
                 if (!node.canBeDeleted) continue;
-                m_Graph.nodes.Remove(node.id);
+                m_Graph.RemoveNode(node.id);
                 nodeViews.Remove(node.id);
             }
 
             DeselectAll();
             if (nodes.Contains(startNode))
             {
-                if (m_Graph.nodes.Count > 0)
+                if (m_Graph.values.Count > 0)
                 {
-                    m_Graph.startNodeId = m_Graph.nodes.First().Value.id;
+                    m_Graph.startNodeId = m_Graph.values.First().id;
                 }
                 else
                 {
@@ -1069,6 +1086,7 @@ namespace DaGenGraph.Editor
                     break;
                 }
             }
+            
             var nodeView = Activator.CreateInstance(viewType) as NodeView;
             if (nodeView == null) return null;
             nodeView.Init(++m_Graph.windowID, node, m_Graph, this);
@@ -1076,17 +1094,16 @@ namespace DaGenGraph.Editor
             return nodeView;
         }
 
-        protected virtual void RemovePort(Port port)
+        protected virtual void RemovePort(Port port,bool force = false)
         {
-            if (!m_Graph.nodes[port.nodeId].CanDeletePort(port)) return;
+            if (!force && !m_Graph.FindNode(port.nodeId).CanDeletePort(port)) return;
             DisconnectPort(port);
             points.Remove(port.id);
             edgeViews.Remove(port.id);
-            var node = m_Graph.nodes[port.nodeId];
+           
+            var node = m_Graph.FindNode(port.nodeId);
             if (node == null) return;
-            if (port.isInput) node.inputPorts.Remove(port);
-            if (port.isOutput) node.outputPorts.Remove(port);
-            node.onDeletePort?.Invoke(port);
+            node.DeletePort(port);
         }
 
         protected abstract void SaveGraph();
@@ -1097,9 +1114,9 @@ namespace DaGenGraph.Editor
             if (graphBase == null) return;
             nodeViews.Clear();
             m_Graph = graphBase;
-            foreach (var item in m_Graph.nodes)
+            foreach (var item in m_Graph.values)
             {
-                CreateNodeView(item.Value);
+                CreateNodeView(item);
             }
         }
         protected abstract GraphBase LoadGraphBase();
@@ -1110,9 +1127,9 @@ namespace DaGenGraph.Editor
             if (graphBase == null) return;
             nodeViews.Clear();
             m_Graph = graphBase;
-            foreach (var item in m_Graph.nodes)
+            foreach (var item in m_Graph.values)
             {
-                CreateNodeView(item.Value);
+                CreateNodeView(item);
             }
         }
 

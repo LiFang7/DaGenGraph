@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace DaGenGraph
 {
-    public class Edge
+    public class Edge: ScriptableObject
     {
         #region Properties
 
@@ -29,16 +29,12 @@ namespace DaGenGraph
         #endregion
 
         #region Constructors
-
-        public Edge()
-        {
-            
-        }
+        
 
         /// <summary> Creates a new instance for this class between two ports (Input - Output or Output - Input) </summary>
         /// <param name="port1"> port One </param>
         /// <param name="port2"> port Two </param>
-        public Edge(Port port1, Port port2)
+        public void Init(Port port1, Port port2)
         {
             GenerateNewId();
             if (port1.isOutput && port2.isInput)

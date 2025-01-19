@@ -164,32 +164,32 @@ namespace DaGenGraph.Editor
             float currentCurveWidth = 3;
             if (EditorApplication.isPlaying)
             {
-                if (edge.outputNode.GetEdge(edge.edgeId).ping)
+                if (m_Graph.GetEdge(edge.edgeId).ping)
                 {
                     m_EdgeColor = m_OutputColor;
                     m_AnimateOutput = true;
-                    if (edge.outputNode.GetEdge(edge.edgeId).reSetTime)
+                    if (m_Graph.GetEdge(edge.edgeId).reSetTime)
                     {
                         m_AniTime = 0;
-                        edge.outputNode.GetEdge(edge.edgeId).reSetTime = false;
+                        m_Graph.GetEdge(edge.edgeId).reSetTime = false;
                     }
                 }
-                else if (edge.inputNode.GetEdge(edge.edgeId).ping)
+                else if (m_Graph.GetEdge(edge.edgeId).ping)
                 {
                     m_EdgeColor = m_InputColor;
                     m_AnimateInput = true;
-                    if (edge.inputNode.GetEdge(edge.edgeId).reSetTime)
+                    if (m_Graph.GetEdge(edge.edgeId).reSetTime)
                     {
                         m_AniTime = 0;
-                        edge.inputNode.GetEdge(edge.edgeId).reSetTime = false;
+                        m_Graph.GetEdge(edge.edgeId).reSetTime = false;
                     }
                 }
             }
-            else if (edge.outputNode.GetEdge(edge.edgeId).ping ||
-                     edge.inputNode.GetEdge(edge.edgeId).ping)
+            else if (m_Graph.GetEdge(edge.edgeId).ping ||
+                     m_Graph.GetEdge(edge.edgeId).ping)
             {
-                edge.outputNode.GetEdge(edge.edgeId).ping = false;
-                edge.inputNode.GetEdge(edge.edgeId).ping = false;
+                m_Graph.GetEdge(edge.edgeId).ping = false;
+                m_Graph.GetEdge(edge.edgeId).ping = false;
             }
 
             m_DotColor = m_EdgeColor;
@@ -261,9 +261,9 @@ namespace DaGenGraph.Editor
 
             m_DotPointIndex = Mathf.Clamp(m_DotPointIndex, 0, m_NumberOfPoints);
             //reset edge's ping
-            if (edge.outputNode.GetEdge(edge.edgeId).ping && m_DotPointIndex >= m_NumberOfPoints)
+            if (m_Graph.GetEdge(edge.edgeId).ping && m_DotPointIndex >= m_NumberOfPoints)
             {
-                edge.outputNode.GetEdge(edge.edgeId).ping = false;
+                m_Graph.GetEdge(edge.edgeId).ping = false;
             }
 
             m_DotPoint = m_BezierPoints[m_DotPointIndex];
@@ -469,36 +469,23 @@ namespace DaGenGraph.Editor
 
         #region DrawInspector
 
-        private void DrawInspector()
+        private Vector2 scrollPos;
+        private void DrawInspector(float width)
         {
-            var inspectorArea = new Rect(position.width * 0.8f, 0, position.width * 0.2f, position.height);
+            var inspectorArea = new Rect(position.width - width, 20, width, position.height-20);
             GUILayout.BeginArea(inspectorArea);
+            scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.Width(inspectorArea.width), GUILayout.Height(inspectorArea.height));
             var selectedNode = m_SelectedNodes.FirstOrDefault();
-            if (selectedNode == null) return;
-            var fields = selectedNode.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance);
-
-            foreach (var field in fields)
+            if (selectedNode != null)
             {
-                object value = field.GetValue(selectedNode);
-                // 显示字段名称和对应的值
-                if (field.FieldType == typeof(string))
-                {
-                    field.SetValue(selectedNode, EditorGUILayout.TextField(field.Name, (string)value));
-                }
-                else if (field.FieldType == typeof(int))
-                {
-                    field.SetValue(selectedNode, EditorGUILayout.IntField(field.Name, (int)value));
-                }
-                else if (field.FieldType == typeof(float))
-                {
-                    field.SetValue(selectedNode, EditorGUILayout.FloatField(field.Name, (float)value));
-                }
-                else if (field.FieldType == typeof(bool))
-                {
-                    field.SetValue(selectedNode, EditorGUILayout.Toggle(field.Name, (bool)value));
-                }
+                m_SelectedNodeId = selectedNode.id;
             }
-
+            if (!string.IsNullOrEmpty(m_SelectedNodeId) && nodeViews.TryGetValue(m_SelectedNodeId, out var view))
+            {
+                EditorGUILayout.LabelField(view.GetType().Name);
+                view.DrawInspector(true);
+            }
+            EditorGUILayout.EndScrollView();
             GUILayout.EndArea();
         }
 
