@@ -14,8 +14,12 @@ namespace DaGenGraph
         private static Dictionary<Type, string[]> fullNames = new Dictionary<Type, string[]>();
         public static List<Type> GetSubClassList(Type type,out string[] names)
         {
+            if (type == null)
+            {
+                names = null;
+                return null;
+            }
             fullNames.TryGetValue(type, out names);
-            if (type == null) return null;
             if (subTypes.TryGetValue(type, out var res)) return res;
             res = new List<Type>();
 

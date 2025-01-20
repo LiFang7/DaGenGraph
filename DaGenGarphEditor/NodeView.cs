@@ -345,41 +345,41 @@ namespace DaGenGraph.Editor
 
             foreach (var field in fields)
             {
-                height += DrawObjectFieldInspector(field, obj, isDetails);
+                var attribute = field.GetCustomAttribute(typeof(DrawIgnoreAttribute));
+                if (attribute is DrawIgnoreAttribute ignoreAttribute)
+                {
+                    if (ignoreAttribute.Ignore == Ignore.All) continue;
+                    if (ignoreAttribute.Ignore == Ignore.Details == isDetails) continue;
+                }
+                if (field.GetCustomAttribute(typeof(HideInInspector)) is HideInInspector)
+                {
+                    continue;
+                }
+                
+                if (field.GetCustomAttribute(typeof(TooltipAttribute)) is TooltipAttribute tooltip)
+                {
+                    EditorGUILayout.HelpBox(tooltip.tooltip,MessageType.Info);
+                    height += 40;
+                }
+                if (field.GetCustomAttribute(typeof(HeaderAttribute)) is HeaderAttribute header)
+                {
+                    EditorGUILayout.LabelField(header.header);
+                    height += 20;
+                }
+                if (field.GetCustomAttribute(typeof(SpaceAttribute)) is SpaceAttribute space)
+                {
+                    EditorGUILayout.Space(space.height);
+                    height += space.height;
+                }
+                height += DrawFieldInspector(field, obj, isDetails);
             }
 
             return height;
         }
 
-        protected virtual float DrawObjectFieldInspector(FieldInfo field, object obj, bool isDetails = false)
+        protected virtual float DrawFieldInspector(FieldInfo field, object obj, bool isDetails = false)
         {
-            var attribute = field.GetCustomAttribute(typeof(DrawIgnoreAttribute));
-            if (attribute is DrawIgnoreAttribute ignoreAttribute)
-            {
-                if (ignoreAttribute.Ignore == Ignore.All) return 0;
-                if (ignoreAttribute.Ignore == Ignore.Details == isDetails) return 0;
-            }
-            if (field.GetCustomAttribute(typeof(HideInInspector)) is HideInInspector)
-            {
-                return 0;
-            }
-
             float height = 0;
-            if (field.GetCustomAttribute(typeof(TooltipAttribute)) is TooltipAttribute tooltip)
-            {
-                EditorGUILayout.HelpBox(tooltip.tooltip,MessageType.Info);
-                height += 40;
-            }
-            if (field.GetCustomAttribute(typeof(HeaderAttribute)) is HeaderAttribute header)
-            {
-                EditorGUILayout.LabelField(header.header);
-                height += 20;
-            }
-            if (field.GetCustomAttribute(typeof(SpaceAttribute)) is SpaceAttribute space)
-            {
-                EditorGUILayout.Space(space.height);
-                height += space.height;
-            }
             object value = field.GetValue(obj);
             // 显示字段名称和对应的值
             if (field.FieldType == typeof(string))
