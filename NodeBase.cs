@@ -360,6 +360,10 @@ namespace DaGenGraph
             return false;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="port"></param>
         public void DeletePort(Port port)
         {
             if (port.IsInput()) inputPorts.Remove(port);

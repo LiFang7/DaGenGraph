@@ -559,7 +559,14 @@ namespace DaGenGraph.Editor
                 }
 
                 //mouse left click is dragging and creating a selection box <- we know this because the the mouse is not over a point nor a node
-                if (m_StartSelectPoint != null) m_Mode = GraphMode.Select;
+                if (m_StartSelectPoint != null)
+                {
+                    if (!m_DrawInspector || Event.current.mousePosition.x < position.width - m_NodeInspectorWidth)
+                    {
+                        m_Mode = GraphMode.Select;
+                    }
+                }
+                
                 if (m_Mode == GraphMode.Select)
                 {
                     UpdateSelectionBox(Event.current.mousePosition);
@@ -869,7 +876,7 @@ namespace DaGenGraph.Editor
             graph.CreateEdge(outputPort, inputPort);
         }
 
-        private void DisconnectPort(Port port)
+        public void DisconnectPort(Port port)
         {
             if (!port.IsConnected()) return;
 

@@ -86,16 +86,7 @@ namespace DaGenGraph.Editor
         protected virtual float DrawMemberInspector(MemberInfo member, object obj, bool isDetails = false)
         {
             float height = 0;
-            if (member.GetCustomAttribute(typeof(DrawIgnoreAttribute)) is DrawIgnoreAttribute ignoreAttribute)
-            {
-                if (ignoreAttribute.Ignore == Ignore.All) return 0;
-                if (ignoreAttribute.Ignore == Ignore.Details == isDetails) return 0;
-            }
-
-            if (member.GetCustomAttribute(typeof(ShowIfAttribute)) is ShowIfAttribute showIfAttribute)
-            {
-                if (!CheckShowIf(member, obj, showIfAttribute)) return 0;
-            }
+            if (!NeedShowInspector(member, obj, isDetails)) return 0;
 
             if (isDetails && member.GetCustomAttribute(typeof(InfoBoxAttribute)) is InfoBoxAttribute infoBox)
             {
@@ -178,6 +169,21 @@ namespace DaGenGraph.Editor
             return height;
         }
 
+        protected virtual bool NeedShowInspector(MemberInfo member, object obj, bool isDetails)
+        {
+            if (!SelectMemberInfo(member, obj, isDetails)) return false;
+            if (member.GetCustomAttribute(typeof(DrawIgnoreAttribute)) is DrawIgnoreAttribute ignoreAttribute)
+            {
+                if (ignoreAttribute.Ignore == Ignore.All) return false;
+                if (ignoreAttribute.Ignore == Ignore.Details == isDetails) return false;
+            }
+
+            if (member.GetCustomAttribute(typeof(ShowIfAttribute)) is ShowIfAttribute showIfAttribute)
+            {
+                if (!CheckShowIf(member, obj, showIfAttribute)) return false;
+            }
+            return true;
+        }
         #region DrawField
 
         protected virtual float DrawFieldInspector(FieldInfo field, object obj, bool isDetails = false)
@@ -1370,7 +1376,7 @@ namespace DaGenGraph.Editor
             return TypeHelper.GetSubClassList(fieldInfo, type, out names);
         }
 
-        protected virtual bool NeedShowInspector(MemberInfo member, object obj, bool isDetails)
+        protected virtual bool SelectMemberInfo(MemberInfo member, object obj, bool isDetails)
         {
             if (member is PropertyInfo prop && !prop.CanWrite) return false;
             if (member is MethodInfo && member.GetCustomAttribute(typeof(ButtonAttribute)) == null) return false;
@@ -1398,7 +1404,7 @@ namespace DaGenGraph.Editor
             var members = type.GetMembers(BindingFlags.Public | BindingFlags.Instance);
             foreach (var member in members)
             {
-                if (!NeedShowInspector(member, obj, true)) continue;
+                if (!SelectMemberInfo(member, obj, true)) continue;
                 float sort = 0;
                 if (member.GetCustomAttribute(typeof(PropertyOrderAttribute)) is PropertyOrderAttribute orderAttribute)
                 {

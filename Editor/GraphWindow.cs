@@ -460,6 +460,14 @@ namespace DaGenGraph.Editor
         private void ConstructGraphGUI()
         {
             if (m_Graph == null) return;
+            if (m_NodeViews!=null && m_NodeViews.Count != m_Graph.values.Count)
+            {
+                nodeViews.Clear();
+                foreach (var item in m_Graph.values)
+                {
+                    CreateNodeView(item);
+                }
+            }
             m_Points = null;
             m_Ports = null;
             m_EdgeViews = null;

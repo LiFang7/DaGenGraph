@@ -54,6 +54,7 @@ namespace DaGenGraph.Editor
         public Rect drawRect => m_DrawRect;
         protected float dynamicHeight { get; set; }
 
+        public GraphWindow graphWindow => m_graphWindow;
         #endregion
 
         #region GUIStyles
@@ -95,6 +96,7 @@ namespace DaGenGraph.Editor
             m_Node = node;
             m_Graph = graph;
             m_graphWindow = graphWindow;
+            m_Node.onDeletePort += OnDeletePort;
         }
 
         public virtual void OnDoubleClick(EditorWindow window)
@@ -377,6 +379,11 @@ namespace DaGenGraph.Editor
             GUI.color = color;
             dynamicHeight += m_FooterRect.height + 6 + 2;
             UpdateNodeHeight(dynamicHeight);
+        }
+
+        private void OnDeletePort(Port port)
+        {
+            m_graphWindow.DisconnectPort(port);
         }
 
         #endregion
