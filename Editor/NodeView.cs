@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
 namespace DaGenGraph.Editor
 {
-    public class NodeView
+    public class NodeView : DrawBase
     {
         #region Private Variables
 
@@ -13,13 +14,6 @@ namespace DaGenGraph.Editor
         private GraphWindow m_graphWindow;
         private int m_WindowId;
         private GraphBase m_Graph;
-        private GUIStyle m_CurrentStyle;
-        private GUIStyle m_NormalStyle;
-        private GUIStyle m_SelectedStyle;
-        private GUIStyle m_CurrentHeaderStyle;
-        private GUIStyle m_HeaderNormalStyle;
-        private GUIStyle m_HeaderSelectedStyle;
-        private GUIStyle m_IconStyle;
         private Vector2 m_DeleteButtonSize;
         private Vector2 m_Offset;
         private Rect m_DrawRect;
@@ -36,9 +30,12 @@ namespace DaGenGraph.Editor
         private Rect m_NodeOutlineRect;
         private Color m_NodeGlowColor;
         private Color m_NodeHeaderAndFooterBackgroundColor;
+        private Color m_RootNodeHeaderAndFooterBackgroundColor;
         private Color m_NodeBodyColor;
         private Color m_NodeOutlineColor;
         private Color m_HeaderTextAndIconColor;
+
+        private HashSet<FieldInfo> foldoutState = new HashSet<FieldInfo>();
 
         #endregion
 
@@ -55,8 +52,9 @@ namespace DaGenGraph.Editor
         public Vector2 size => m_Node.GetSize();
         public Rect rect => m_Node.GetRect();
         public Rect drawRect => m_DrawRect;
-        private float dynamicHeight { get; set; }
+        protected float dynamicHeight { get; set; }
 
+        public GraphWindow graphWindow => m_graphWindow;
         #endregion
 
         #region GUIStyles
@@ -79,7 +77,7 @@ namespace DaGenGraph.Editor
 
         private static GUIStyle nodeHorizontalDivider =>
             s_NodeHorizontalDivider ??= Styles.GetStyle("NodeHorizontalDivider");
-
+        
         #endregion
 
         #region Static Variables
@@ -98,10 +96,16 @@ namespace DaGenGraph.Editor
             m_Node = node;
             m_Graph = graph;
             m_graphWindow = graphWindow;
+            m_Node.onDeletePort += OnDeletePort;
         }
 
         public virtual void OnDoubleClick(EditorWindow window)
         {
+        }
+
+        public virtual void OnUnFocus(EditorWindow window)
+        {
+            GUI.FocusControl(null);
         }
 
         protected virtual void OnNodeGUI()
@@ -112,7 +116,7 @@ namespace DaGenGraph.Editor
 
         protected virtual GUIStyle GetIconStyle()
         {
-            return m_IconStyle ??= nodeDot;
+            return nodeDot;
         }
 
         protected virtual Rect DrawPort(Port port)
@@ -131,9 +135,9 @@ namespace DaGenGraph.Editor
             var dividerColor = Color.gray;
 
             //check if the Port is connected in order to color the divider to the input or output color
-            if (port.isConnected)
+            if (port.IsConnected())
             {
-                portColor = port.isInput ? UColor.GetColor().portInputColor : UColor.GetColor().portOutputColor;
+                portColor = port.IsInput() ? UColor.GetColor().portInputColor : UColor.GetColor().portOutputColor;
                 dividerColor = UColor.GetColor().nodeDividerColor;
             }
 
@@ -146,7 +150,7 @@ namespace DaGenGraph.Editor
             if (m_graphWindow.altKeyPressed)
             {
                 //since we're in delete mode and this socket can be deConnect -> set its color to red
-                if (port.isConnected)
+                if (port.IsConnected())
                 {
                     portColor = Color.red;
                     dividerColor = Color.red;
@@ -177,7 +181,7 @@ namespace DaGenGraph.Editor
             GUI.Box(bottomDividerRect, GUIContent.none, nodeHorizontalDivider);
             //reset the gui color            
             GUI.color = Color.white;
-            var label = port.isInput ? "Input" : port.portName;
+            var label = port.portName;
             var areaRect = new Rect(port.GetX() + 24, port.GetY(), port.GetWidth() - 48, port.GetHeight());
             GUILayout.BeginArea(areaRect);
             {
@@ -205,7 +209,7 @@ namespace DaGenGraph.Editor
                     port.hoverRect.width,
                     port.hoverRect.height * port.showHover.faded);
 
-                if (port.isConnected)
+                if (port.IsConnected())
                 {
                     switch (port.GetDirection())
                     {
@@ -259,7 +263,7 @@ namespace DaGenGraph.Editor
             GUI.color = m_NodeGlowColor;
             GUI.Box(m_GlowRect, GUIContent.none, nodeGlowStyle); //node glow
 
-            GUI.color = m_NodeHeaderAndFooterBackgroundColor;
+            GUI.color = m_Graph.startNodeId == node.id ? m_RootNodeHeaderAndFooterBackgroundColor:m_NodeHeaderAndFooterBackgroundColor;
             GUI.Box(m_HeaderRect, GUIContent.none, nodeHeader); //header background
 
             GUI.color = m_HeaderTextAndIconColor;
@@ -272,7 +276,7 @@ namespace DaGenGraph.Editor
             GUI.color = m_NodeBodyColor;
             GUI.Box(m_BodyRect, GUIContent.none, nodeBody); //body background
 
-            GUI.color = m_NodeHeaderAndFooterBackgroundColor;
+            GUI.color = m_Graph.startNodeId == node.id ? m_RootNodeHeaderAndFooterBackgroundColor:m_NodeHeaderAndFooterBackgroundColor;
             GUI.Box(m_FooterRect, GUIContent.none, nodeFooter); //footer background
 
             GUI.color = m_NodeOutlineColor;
@@ -284,6 +288,11 @@ namespace DaGenGraph.Editor
         protected void DrawNodePorts()
         {
             DrawPortsList(node.inputPorts);
+            var inspectorArea = new Rect(20, dynamicHeight + 5, width - 40, height);
+            GUILayout.BeginArea(inspectorArea);
+            dynamicHeight += DrawInspector();
+            GUILayout.EndArea();
+            dynamicHeight += 5;
             DrawPortsList(node.outputPorts);
         }
 
@@ -324,6 +333,11 @@ namespace DaGenGraph.Editor
             GUI.Window(m_WindowId, clientRect, DrawNode, string.Empty, nodeArea);
         }
 
+        public virtual float DrawInspector(bool isDetails = false)
+        {
+            return DrawObjectInspector(node, isDetails);
+        }
+        
         #endregion
 
         #region Private Methods
@@ -342,6 +356,7 @@ namespace DaGenGraph.Editor
             m_NodeOutlineColor = UColor.GetColor().nodeOutlineColor;
             m_NodeOutlineColor.a = GUI.color.a * (isSelected ? 1 : node.isHovered ? 0.4f : 0);
             m_NodeHeaderAndFooterBackgroundColor = UColor.GetColor().nodeHeaderAndFooterBackgroundColor;
+            m_RootNodeHeaderAndFooterBackgroundColor = UColor.GetColor().nodeRootHeaderAndFooterBackgroundColor;
             //NODE SELECETD COLOR
             if (EditorApplication.isPlaying)
             {
@@ -366,6 +381,17 @@ namespace DaGenGraph.Editor
             UpdateNodeHeight(dynamicHeight);
         }
 
+        private void OnDeletePort(Port port)
+        {
+            m_graphWindow.DisconnectPort(port);
+        }
+
         #endregion
+
+    }
+
+    public abstract class NodeView<T> : NodeView where T : NodeBase
+    {
+        public T node => base.node as T;
     }
 }

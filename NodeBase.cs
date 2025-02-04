@@ -1,39 +1,37 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace DaGenGraph
 {
     [Serializable]
-    public class NodeBase
+    public abstract class NodeBase: ScriptableObject
     {
         #region public Variables
 
-        public List<Port> inputPorts;
-        public List<Port> outputPorts;
-        public bool allowDuplicateNodeName;
-        public bool allowEmptyNodeName;
-        public bool canBeDeleted;
-        public float height;
-        public float width;
-        public float x;
-        public float y;
-        public int minimumInputPortsCount;
-        public int minimumOutputPortsCount;
-        public string graphId;
-        public string id;
-        public string name;
+        [DrawIgnore] public List<Port> inputPorts;
+        [DrawIgnore] public List<Port> outputPorts;
+        [DrawIgnore] public bool allowDuplicateNodeName;
+        [DrawIgnore] public bool allowEmptyNodeName;
+        [DrawIgnore] public bool canBeDeleted;
+        [DrawIgnore] public float height;
+        [DrawIgnore] public float width;
+        [DrawIgnore] public float x;
+        [DrawIgnore] public float y;
+        [DrawIgnore] public int minimumInputPortsCount;
+        [DrawIgnore] public int minimumOutputPortsCount;
+        [DrawIgnore] public string id;
+        [DrawIgnore] public bool isHovered;
+        [DrawIgnore] public bool errorNodeNameIsEmpty;
+        [DrawIgnore] public bool errorDuplicateNameFoundInGraph;
 
-        public bool isHovered;
-        public bool errorNodeNameIsEmpty;
-        public bool errorDuplicateNameFoundInGraph;
-        
         /// <summary> Trigger a visual cue for this node, in the Editor, at runtime. Mostly used when this node has been activated </summary>
-        public bool ping;
-        
-        public DeletePort onDeletePort;
+        [DrawIgnore] public bool ping;
 
-        public delegate void DeletePort(Port port);
+        public event DeletePortDelegate onDeletePort;
+
+        public delegate void DeletePortDelegate(Port port);
 
         #endregion
 
@@ -47,37 +45,6 @@ namespace DaGenGraph
 
         /// <summary> Returns the first output port. If there isn't one, it returns null </summary>
         public Port GetFirstOutputPort() => outputPorts.Count > 0 ? outputPorts[0] : null;
-
-
-        /// <summary> Returns this node's outputNodeIds </summary>
-        public List<string> GetOutputNodeIds()
-        {
-            var nodes = new List<string>();
-            foreach (var port in outputPorts)
-            {
-                foreach (var edge in port.edges)
-                {
-                    nodes.Add(edge.outputNodeId);
-                }
-            }
-
-            return nodes;
-        }
-
-        /// <summary> Returns this node's inputNodeIds </summary>
-        public List<string> GetInputNodeIds()
-        {
-            var nodes = new List<string>();
-            foreach (var port in inputPorts)
-            {
-                foreach (var edge in port.edges)
-                {
-                    nodes.Add(edge.inputNodeId);
-                }
-            }
-
-            return nodes;
-        }
         
 
         private void CheckThatNodeNameIsNotEmpty()
@@ -104,10 +71,6 @@ namespace DaGenGraph
 
         #region Protected  Methods
 
-        protected virtual void OnEnable()
-        {
-            id = Guid.NewGuid().ToString();
-        }
 
         /// <summary> Set to allow this node to have an empty node name </summary>
         /// <param name="value"> Disable error for empty node name </param>
@@ -121,28 +84,6 @@ namespace DaGenGraph
         protected void SetAllowDuplicateNodeName(bool value)
         {
             allowDuplicateNodeName = value;
-        }
-
-
-        /// <summary> OnEnterNode is called on the frame when this node becomes active just before any of the node's Update methods are called for the first time </summary>
-        /// <param name="previousActiveNode"> The node that was active before this one </param>
-        /// <param name="edge"> The edge that activated this node </param>
-        public virtual void OnEnter(NodeBase previousActiveNode, Edge edge)
-        {
-            ping = true;
-        }
-
-        /// <summary> OnExitNode is called just before this node becomes inactive </summary>
-        /// <param name="nextActiveNode"> The node that will become active next</param>
-        /// <param name="edge"> The edge that activates the next node </param>
-        public virtual void OnExit(NodeBase nextActiveNode, Edge edge)
-        {
-            ping = false;
-            if (edge != null)
-            {
-                edge.ping = true;
-                edge.reSetTime = true;
-            }
         }
 
         #endregion
@@ -304,17 +245,27 @@ namespace DaGenGraph
         {
             y = value;
         }
-
         /// <summary> Convenience method to add a new input port to this node </summary>
         /// <param name="portName"> The name of the port (if null or empty, it will be auto-generated) </param>
         /// <param name="edgeMode"> The port edge mode (Multiple/Override) </param>
-        /// <param name="edgePoints"> The port edge points locations (if null or empty, it will automatically add two edge points to the left of and the right of the port) </param>
+        /// <param name="edgeType"> The port edge points locations (if null or empty, it will automatically add two edge points to the left of and the right of the port) </param>
         /// <param name="canBeDeleted"> Determines if this port is a special port that cannot be deleted </param>
         /// <param name="canBeReordered"> Determines if this port is a special port that cannot be reordered </param>
-        public Port AddInputPort(string portName, EdgeMode edgeMode, List<Vector2> edgePoints, bool canBeDeleted,
+        public Port AddInputPort<T>(string portName, EdgeMode edgeMode, bool canBeDeleted, EdgeType edgeType,
+            bool canBeReordered = true) where T: Port
+        {
+            return AddPort<T>(portName, PortDirection.Input, edgeMode, canBeDeleted, canBeReordered, edgeType);
+        }
+        /// <summary> Convenience method to add a new input port to this node </summary>
+        /// <param name="portName"> The name of the port (if null or empty, it will be auto-generated) </param>
+        /// <param name="edgeMode"> The port edge mode (Multiple/Override) </param>
+        /// <param name="edgeType"> The port edge points locations (if null or empty, it will automatically add two edge points to the left of and the right of the port) </param>
+        /// <param name="canBeDeleted"> Determines if this port is a special port that cannot be deleted </param>
+        /// <param name="canBeReordered"> Determines if this port is a special port that cannot be reordered </param>
+        public Port AddInputPort(string portName, EdgeMode edgeMode, bool canBeDeleted, EdgeType edgeType,
             bool canBeReordered = true)
         {
-            return AddPort(portName, PortDirection.Input, edgeMode, edgePoints, canBeDeleted, canBeReordered);
+            return AddPort<Port>(portName, PortDirection.Input, edgeMode, canBeDeleted, canBeReordered, edgeType);
         }
 
         /// <summary> Convenience method to add a new input port to this node. This port will have two edge points automatically added to it and they will be to the left of and the right the port </summary>
@@ -324,7 +275,7 @@ namespace DaGenGraph
         /// <param name="canBeReordered"> Determines if this port is a special port that cannot be reordered </param>
         public Port AddInputPort(string portName, EdgeMode edgeMode, bool canBeDeleted, bool canBeReordered)
         {
-            return AddPort(portName, PortDirection.Input, edgeMode, GetLeftAndRightEdgePoints(), canBeDeleted,
+            return AddPort<Port>(portName, PortDirection.Input, edgeMode,  canBeDeleted,
                 canBeReordered);
         }
 
@@ -334,20 +285,30 @@ namespace DaGenGraph
         /// <param name="canBeReordered"> Determines if this port is a special port that cannot be reordered </param>
         public Port AddInputPort(EdgeMode edgeMode, bool canBeDeleted, bool canBeReordered)
         {
-            return AddPort("", PortDirection.Input, edgeMode, GetLeftAndRightEdgePoints(), canBeDeleted,
+            return AddPort<Port>("", PortDirection.Input, edgeMode, canBeDeleted,
                 canBeReordered);
         }
-
         /// <summary> Convenience method to add a new output port to this node </summary>
         /// <param name="portName"> The name of the port (if null or empty, it will be auto-generated) </param>
         /// <param name="edgeMode"> The port edge mode (Multiple/Override) </param>
-        /// <param name="edgePoints"> The port edge points locations (if null or empty, it will automatically add two edge points to the left of and the right of the port) </param>
+        /// <param name="edgeType"> The port edge points locations (if null or empty, it will automatically add two edge points to the left of and the right of the port) </param>
         /// <param name="canBeDeleted"> Determines if this port is a special port that cannot be deleted </param>
         /// <param name="canBeReordered"> Determines if this port is a special port that cannot be reordered </param>
-        public Port AddOutputPort(string portName, EdgeMode edgeMode, List<Vector2> edgePoints, bool canBeDeleted,
+        public Port AddOutputPort<T>(string portName, EdgeMode edgeMode, bool canBeDeleted, EdgeType edgeType ,
+            bool canBeReordered) where T: Port
+        {
+            return AddPort<T>(portName, PortDirection.Output, edgeMode, canBeDeleted, canBeReordered,edgeType);
+        }
+        /// <summary> Convenience method to add a new output port to this node </summary>
+        /// <param name="portName"> The name of the port (if null or empty, it will be auto-generated) </param>
+        /// <param name="edgeMode"> The port edge mode (Multiple/Override) </param>
+        /// <param name="edgeType"> The port edge points locations (if null or empty, it will automatically add two edge points to the left of and the right of the port) </param>
+        /// <param name="canBeDeleted"> Determines if this port is a special port that cannot be deleted </param>
+        /// <param name="canBeReordered"> Determines if this port is a special port that cannot be reordered </param>
+        public Port AddOutputPort(string portName, EdgeMode edgeMode, bool canBeDeleted, EdgeType edgeType ,
             bool canBeReordered)
         {
-            return AddPort(portName, PortDirection.Output, edgeMode, edgePoints, canBeDeleted, canBeReordered);
+            return AddPort<Port>(portName, PortDirection.Output, edgeMode, canBeDeleted, canBeReordered,edgeType);
         }
 
         /// <summary> Convenience method to add a new output port to this node. This port will have two edge points automatically added to it and they will be to the left of and the right the port </summary>
@@ -355,11 +316,9 @@ namespace DaGenGraph
         /// <param name="edgeMode"> The port edge mode (Multiple/Override) </param>
         /// <param name="canBeDeleted"> Determines if this port is a special port that cannot be deleted </param>
         /// <param name="canBeReordered"> Determines if this port is a special port that cannot be reordered </param>
-        public Port AddOutputPort(string portName, EdgeMode edgeMode, bool canBeDeleted,
-            bool canBeReordered)
+        public Port AddOutputPort(string portName, EdgeMode edgeMode, bool canBeDeleted, bool canBeReordered)
         {
-            return AddPort(portName, PortDirection.Output, edgeMode, GetLeftAndRightEdgePoints(), canBeDeleted,
-                canBeReordered);
+            return AddPort<Port>(portName, PortDirection.Output, edgeMode, canBeDeleted, canBeReordered);
         }
 
         /// <summary> Convenience method to add a new output port to this node. This port will have two edge points automatically added to it and they will be to the left of and the right the port </summary>
@@ -368,8 +327,7 @@ namespace DaGenGraph
         /// <param name="canBeReordered"> Determines if this port is a special port that cannot be reordered </param>
         public Port AddOutputPort(EdgeMode edgeMode, bool canBeDeleted, bool canBeReordered)
         {
-            return AddPort("", PortDirection.Output, edgeMode, GetLeftAndRightEdgePoints(), canBeDeleted,
-                canBeReordered);
+            return AddPort<Port>("", PortDirection.Output, edgeMode,  canBeDeleted, canBeReordered);
         }
 
         /// <summary> Returns TRUE if the target port can be deleted, after checking is it is marked as 'deletable' and that by deleting it the node minimum ports count does not go below the set threshold </summary>
@@ -379,9 +337,9 @@ namespace DaGenGraph
             //if port is market as cannot be deleted -> return false -> do not allow the dev to delete this port
             if (!port.canBeDeleted) return false;
             //if port is input -> make sure the node has a minimum input ports count before allowing deletion
-            if (port.isInput) return inputPorts.Count > minimumInputPortsCount;
+            if (port.IsInput()) return inputPorts.Count > minimumInputPortsCount;
             //if port is output -> make sure the node has a minimum output ports count before allowing deletion
-            if (port.isOutput) return outputPorts.Count > minimumOutputPortsCount;
+            if (port.IsOutput()) return outputPorts.Count > minimumOutputPortsCount;
             //event though the port can be deleted -> the node needs to hold a minimum number of ports and will not allow to delete this port
             return false;
         }
@@ -390,29 +348,29 @@ namespace DaGenGraph
         /// <param name="edgeId"> Target edge id </param>
         public bool ContainsEdge(string edgeId)
         {
-            return GetEdge(edgeId) != null;
-        }
-
-        /// <summary> Returns a edge, from this node, with the matching edge id. Returns null if no edge with the given id is found </summary>
-        /// <param name="edgeId"> Target edge id </param>
-        public Edge GetEdge(string edgeId)
-        {
-            Edge edge;
             foreach (var port in inputPorts)
             {
-                edge = port.GetEdge(edgeId);
-                if (edge != null) return edge;
+                if (port.edges.Contains(edgeId)) return true;
             }
 
             foreach (var port in outputPorts)
             {
-                edge = port.GetEdge(edgeId);
-                if (edge != null) return edge;
+                if (port.edges.Contains(edgeId)) return true;
             }
-
-            return null;
+            return false;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="port"></param>
+        public void DeletePort(Port port)
+        {
+            if (port.IsInput()) inputPorts.Remove(port);
+            if (port.IsOutput()) outputPorts.Remove(port);
+            onDeletePort?.Invoke(port);
+            DeletePortBase(port);
+        }
         #endregion
 
         #region Private Methods
@@ -421,83 +379,55 @@ namespace DaGenGraph
         /// <param name="portName"> The name of the port (if null or empty, it will be auto-generated) </param>
         /// <param name="direction"> The port direction (Input/Output) </param>
         /// <param name="edgeMode"> The port edge mode (Multiple/Override) </param>
-        /// <param name="edgePoints"> The port edge points locations (if null or empty, it will automatically add two edge points to the left of and the right of the port) </param>
+        /// <param name="edgeType"> The port edge points locations (if null or empty, it will automatically add two edge points to the left of and the right of the port) </param>
         /// <param name="canBeDeleted"> Determines if this port is a special port that cannot be deleted </param>
         /// <param name="canBeReordered"> Determines if this port is a special port that cannot be reordered </param>
-        private Port AddPort(string portName, PortDirection direction, EdgeMode edgeMode, List<Vector2> edgePoints,
-            bool canBeDeleted, bool canBeReordered)
+        private Port AddPort<T>(string portName, PortDirection direction, EdgeMode edgeMode, 
+            bool canBeDeleted, bool canBeReordered , EdgeType edgeType = EdgeType.Both)where T:Port
         {
-            if (edgePoints == null)
-            {
-                edgePoints = new List<Vector2>(GetLeftAndRightEdgePoints());
-            }
-
-            if (edgePoints.Count == 0)
-            {
-                edgePoints.AddRange(GetLeftAndRightEdgePoints());
-            }
-
+            string baseName = portName;
             var portNames = new List<string>();
-            int counter;
+            int counter = 1;
             switch (direction)
             {
                 case PortDirection.Input:
                     foreach (Port port in inputPorts)
                         portNames.Add(port.portName);
-                    counter = 0;
-                    if (string.IsNullOrEmpty(portName))
+                    if (string.IsNullOrEmpty(baseName))
                     {
-                        portName = "InputPort_" + counter;
+                        baseName = "InputPort_";
+                        portName = baseName + counter++;
                     }
 
                     while (portNames.Contains(portName))
                     {
-                        portName = "InputPort_" + counter++;
+                        portName = baseName + counter++;
                     }
 
-                    var inputPort = new Port(this, id, portName, direction, edgeMode, edgePoints, canBeDeleted,
-                        canBeReordered);
+                    var inputPort = CreatePortBase<T>();
+                    inputPort.Init(this, portName, direction, edgeMode, edgeType, canBeDeleted, canBeReordered);
                     inputPorts.Add(inputPort);
                     return inputPort;
                 case PortDirection.Output:
                     foreach (Port port in outputPorts)
                         portNames.Add(port.portName);
-                    counter = 0;
-                    if (string.IsNullOrEmpty(portName))
+                    if (string.IsNullOrEmpty(baseName))
                     {
-                        portName = "OutputPort_" + counter;
+                        baseName = "OutputPort_";
+                        portName = baseName + counter++;
                     }
 
                     while (portNames.Contains(portName))
                     {
-                        portName = "OutputPort_" + counter++;
+                        portName = baseName + counter++;
                     }
-
-                    var outputPort = new Port(this, "", portName, direction, edgeMode, edgePoints, canBeDeleted,
-                        canBeReordered);
+                    var outputPort = CreatePortBase<T>();
+                    outputPort.Init(this, portName, direction, edgeMode, edgeType, canBeDeleted, canBeReordered);
                     outputPorts.Add(outputPort);
                     return outputPort;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(direction), direction, null);
             }
-        }
-
-        /// <summary> Returns a list of two Edge points positions to the left of and the right of the Port </summary>
-        private List<Vector2> GetLeftAndRightEdgePoints()
-        {
-            return new List<Vector2> { GetLeftEdgePointPosition(), GetRightEdgePointPosition() };
-        }
-
-        /// <summary> Returns the default left edge point position for a Port </summary>
-        private Vector2 GetLeftEdgePointPosition()
-        {
-            return new Vector2(-2f, 24f / 2 - 16f / 2);
-        }
-
-        /// <summary> Returns the default right edge point position for a Port </summary>
-        private Vector2 GetRightEdgePointPosition()
-        {
-            return new Vector2(GetWidth() + 2f - 16f, 24f / 2 - 16f / 2);
         }
 
         /// <summary> Generates a new unique node id for this node and returns the newly generated id value </summary>
@@ -509,34 +439,67 @@ namespace DaGenGraph
         #endregion
 
         #region Public virtual Methods
-
-        public virtual void InitNode(GraphBase graph, Vector2 pos, string name, int minimumInputPortsCount = 1,
-            int minimumOutputPortsCount = 0)
+        
+        protected virtual Port CreatePortBase<T>() where T:Port
         {
-            this.name = name;
+            var port = CreateInstance<T>();
+            port.name = "Port";
+#if UNITY_EDITOR
+            try
+            {
+                UnityEditor.AssetDatabase.AddObjectToAsset(port, this);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError(ex);
+                return null;
+            }
+#endif
+            return port;
+        }
+        
+        protected virtual void DeletePortBase(Port port)
+        {
+            DestroyImmediate(port,true);
+        }
+
+        /// <summary> OnEnterNode is called on the frame when this node becomes active just before any of the node's Update methods are called for the first time </summary>
+        /// <param name="previousActiveNode"> The node that was active before this one </param>
+        /// <param name="edge"> The edge that activated this node </param>
+        public virtual void OnEnter(NodeBase previousActiveNode, Edge edge)
+        {
+            ping = true;
+        }
+
+        /// <summary> OnExitNode is called just before this node becomes inactive </summary>
+        /// <param name="nextActiveNode"> The node that will become active next</param>
+        /// <param name="edge"> The edge that activates the next node </param>
+        public virtual void OnExit(NodeBase nextActiveNode, Edge edge)
+        {
+            ping = false;
+            if (edge != null)
+            {
+                edge.ping = true;
+                edge.reSetTime = true;
+            }
+        }
+        
+        public virtual void InitNode(Vector2 pos, string nodeName, int minInputPortsCount = 0, int minOutputPortsCount = 0)
+        {
+            name = nodeName;
             GenerateNewId();
-            graphId = graph.guid;
             inputPorts = new List<Port>();
             outputPorts = new List<Port>();
             canBeDeleted = true;
-            this.minimumInputPortsCount = minimumInputPortsCount;
-            this.minimumOutputPortsCount = minimumOutputPortsCount;
+            this.minimumInputPortsCount = minInputPortsCount;
+            this.minimumOutputPortsCount = minOutputPortsCount;
             x = pos.x;
             y = pos.y;
-            width = 216f;
-            height = 216f;
+            width = 260f;
+            height = 200f;
         }
 
-        public virtual void AddDefaultPorts()
-        {
-            AddInputPort(EdgeMode.Multiple, false, false);
-            //AddOutputPort(EdgeMode.Override, true, true);
-        }
-
-        public virtual void Save()
-        {
-            //序列化文件
-        }
+        public abstract void AddDefaultPorts();
 
         #endregion
     }

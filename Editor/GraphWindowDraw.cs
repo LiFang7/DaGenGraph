@@ -71,7 +71,7 @@ namespace DaGenGraph.Editor
         private delegate void DrawToolbarHandler();
 
         private List<DrawToolbarHandler> m_DrawToolbarHandlers=new List<DrawToolbarHandler>();
-
+        private List<DrawToolbarHandler> m_DrawToolbarHandlersRight=new List<DrawToolbarHandler>();
         private Color m_CreateEdgeLineColor = Color.white;
         private Color m_ConnectionBackgroundColor;
         private Color m_EdgeColor;
@@ -85,6 +85,7 @@ namespace DaGenGraph.Editor
         private float m_DotSize;
         private int m_DotPointIndex;
         private int m_NumberOfPoints;
+       
 
         #endregion
 
@@ -164,32 +165,32 @@ namespace DaGenGraph.Editor
             float currentCurveWidth = 3;
             if (EditorApplication.isPlaying)
             {
-                if (edge.outputNode.GetEdge(edge.edgeId).ping)
+                if (m_Graph.GetEdge(edge.edgeId).ping)
                 {
                     m_EdgeColor = m_OutputColor;
                     m_AnimateOutput = true;
-                    if (edge.outputNode.GetEdge(edge.edgeId).reSetTime)
+                    if (m_Graph.GetEdge(edge.edgeId).reSetTime)
                     {
                         m_AniTime = 0;
-                        edge.outputNode.GetEdge(edge.edgeId).reSetTime = false;
+                        m_Graph.GetEdge(edge.edgeId).reSetTime = false;
                     }
                 }
-                else if (edge.inputNode.GetEdge(edge.edgeId).ping)
+                else if (m_Graph.GetEdge(edge.edgeId).ping)
                 {
                     m_EdgeColor = m_InputColor;
                     m_AnimateInput = true;
-                    if (edge.inputNode.GetEdge(edge.edgeId).reSetTime)
+                    if (m_Graph.GetEdge(edge.edgeId).reSetTime)
                     {
                         m_AniTime = 0;
-                        edge.inputNode.GetEdge(edge.edgeId).reSetTime = false;
+                        m_Graph.GetEdge(edge.edgeId).reSetTime = false;
                     }
                 }
             }
-            else if (edge.outputNode.GetEdge(edge.edgeId).ping ||
-                     edge.inputNode.GetEdge(edge.edgeId).ping)
+            else if (m_Graph.GetEdge(edge.edgeId).ping ||
+                     m_Graph.GetEdge(edge.edgeId).ping)
             {
-                edge.outputNode.GetEdge(edge.edgeId).ping = false;
-                edge.inputNode.GetEdge(edge.edgeId).ping = false;
+                m_Graph.GetEdge(edge.edgeId).ping = false;
+                m_Graph.GetEdge(edge.edgeId).ping = false;
             }
 
             m_DotColor = m_EdgeColor;
@@ -261,9 +262,9 @@ namespace DaGenGraph.Editor
 
             m_DotPointIndex = Mathf.Clamp(m_DotPointIndex, 0, m_NumberOfPoints);
             //reset edge's ping
-            if (edge.outputNode.GetEdge(edge.edgeId).ping && m_DotPointIndex >= m_NumberOfPoints)
+            if (m_Graph.GetEdge(edge.edgeId).ping && m_DotPointIndex >= m_NumberOfPoints)
             {
-                edge.outputNode.GetEdge(edge.edgeId).ping = false;
+                m_Graph.GetEdge(edge.edgeId).ping = false;
             }
 
             m_DotPoint = m_BezierPoints[m_DotPointIndex];
@@ -295,10 +296,6 @@ namespace DaGenGraph.Editor
 
         #endregion
 
-        #region DrawNodeDetails
-
-        #endregion
-
         #region DrawPortsEdgePoints
 
         private void DrawPortsEdgePoints()
@@ -324,7 +321,7 @@ namespace DaGenGraph.Editor
                     continue;
                 }
 
-                var pointColor = port.isInput ? UColor.GetColor().portInputColor : UColor.GetColor().portOutputColor;
+                var pointColor = port.IsInput() ? UColor.GetColor().portInputColor : UColor.GetColor().portOutputColor;
                 GUIStyle pointStyle;
                 switch (port.GetConnectionMode())
                 {
@@ -407,7 +404,7 @@ namespace DaGenGraph.Editor
             var pointsInWorldSpace = new List<Vector2>();
             if (port == null) return pointsInWorldSpace;
             if (parentNode == null) return pointsInWorldSpace;
-            foreach (Vector2 edgePoint in port.edgePoints)
+            foreach (Vector2 edgePoint in port.GetEdgePoints())
             {
                 var socketWorldRect = new Rect(parentNode.GetX(),
                     parentNode.GetY() + port.GetY(),
@@ -441,16 +438,29 @@ namespace DaGenGraph.Editor
 
         #region DrawToolbar
 
-        protected virtual void AddButton(GUIContent content, Action callback,
+        protected virtual void AddButton(GUIContent content, Action callback,bool left = true,
             params GUILayoutOption[] options)
         {
-            m_DrawToolbarHandlers.Add(() =>
+            if (left)
             {
-                if (GUILayout.Button(content, options))
+                m_DrawToolbarHandlers.Add(() =>
                 {
-                    callback.Invoke();
-                }
-            });
+                    if (GUILayout.Button(content, options))
+                    {
+                        callback.Invoke();
+                    }
+                });
+            }
+            else
+            {
+                m_DrawToolbarHandlersRight.Add(() =>
+                {
+                    if (GUILayout.Button(content, options))
+                    {
+                        callback.Invoke();
+                    }
+                });
+            }
         }
 
         private void DrawToolbar()
@@ -462,6 +472,10 @@ namespace DaGenGraph.Editor
             }
 
             GUILayout.FlexibleSpace();
+            foreach (var drawToolbarHandler in m_DrawToolbarHandlersRight)
+            {
+                drawToolbarHandler.Invoke();
+            }
             GUILayout.EndHorizontal();
         }
 
@@ -469,39 +483,55 @@ namespace DaGenGraph.Editor
 
         #region DrawInspector
 
-        private void DrawInspector()
+        private Vector2 nodeScrollPos;
+        private Vector2 graphScrollPos;
+        private bool foldGraph;
+        private Dictionary<string,bool> foldNode = new Dictionary<string, bool>();
+        private void DrawInspector(float start,float width)
         {
-            var inspectorArea = new Rect(position.width * 0.8f, 0, position.width * 0.2f, position.height);
+            bool showNodeView = m_Graph!=null && m_SelectedNodes!=null && m_SelectedNodes.Count>0;
+            var inspectorArea = new Rect(start, 20, width, position.height-20);
             GUILayout.BeginArea(inspectorArea);
-            var selectedNode = m_SelectedNodes.FirstOrDefault();
-            if (selectedNode == null) return;
-            var fields = selectedNode.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance);
-
-            foreach (var field in fields)
+            foldGraph = EditorGUILayout.BeginFoldoutHeaderGroup(foldGraph, m_Graph.name);
+            if (foldGraph)
             {
-                object value = field.GetValue(selectedNode);
-                // 显示字段名称和对应的值
-                if (field.FieldType == typeof(string))
-                {
-                    field.SetValue(selectedNode, EditorGUILayout.TextField(field.Name, (string)value));
-                }
-                else if (field.FieldType == typeof(int))
-                {
-                    field.SetValue(selectedNode, EditorGUILayout.IntField(field.Name, (int)value));
-                }
-                else if (field.FieldType == typeof(float))
-                {
-                    field.SetValue(selectedNode, EditorGUILayout.FloatField(field.Name, (float)value));
-                }
-                else if (field.FieldType == typeof(bool))
-                {
-                    field.SetValue(selectedNode, EditorGUILayout.Toggle(field.Name, (bool)value));
-                }
+                graphScrollPos = EditorGUILayout.BeginScrollView(graphScrollPos, GUILayout.Width(inspectorArea.width), GUILayout.Height(showNodeView?200:inspectorArea.height-20));
+                DrawGraphInspector();
+                EditorGUILayout.EndScrollView();
             }
-
+            EditorGUILayout.EndFoldoutHeaderGroup();
+            if (showNodeView)
+            {
+                nodeScrollPos = EditorGUILayout.BeginScrollView(nodeScrollPos, GUILayout.Width(inspectorArea.width), GUILayout.Height(inspectorArea.height-(foldGraph?225:25)));
+                for (int i = 0; i < m_SelectedNodes.Count; i++)
+                {
+                    var node = m_SelectedNodes[i];
+                    if (node == null) continue;
+                    if(!nodeViews.TryGetValue(node.id,out var view)) continue;
+                    if (!foldNode.TryGetValue(node.id, out var fold))
+                    {
+                        fold = false;
+                        foldNode[m_SelectedNodes[i].id] = fold;
+                    }
+                    fold = EditorGUILayout.BeginFoldoutHeaderGroup(fold, $"{node.name}({node.id})");
+                    if (fold)
+                    {
+                        EditorGUILayout.Space(10);
+                        //nodeView自己决定展示
+                        view.DrawInspector(true);
+                    }
+                    foldNode[m_SelectedNodes[i].id] = fold;
+                    EditorGUILayout.EndFoldoutHeaderGroup();
+                }
+                EditorGUILayout.EndScrollView();
+            }
             GUILayout.EndArea();
         }
 
+        protected virtual void DrawGraphInspector()
+        {
+            DrawObjectInspector(m_Graph, true);
+        }
         #endregion
     }
 }

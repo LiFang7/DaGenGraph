@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
 using DaGenGraph.Editor;
-using Newtonsoft.Json;
 using UnityEditor;
+using UnityEditor.Callbacks;
 using UnityEngine;
 
 namespace DaGenGraph.Example
@@ -32,7 +32,19 @@ namespace DaGenGraph.Example
             instance.Show();
             instance.InitGraph();
         }
-
+        [OnOpenAsset(0)]
+        public static bool OnBaseDataOpened(int instanceID, int line)
+        {
+            var data = EditorUtility.InstanceIDToObject(instanceID) as ExampleGraph;
+            if (data != null)
+            {
+                var path = AssetDatabase.GetAssetPath(data);
+                instance.Show();
+                instance.path = path;
+                instance.SetGraph(data);
+            }
+            return data != null;
+        }
         protected override void InitGraph()
         {
             path = null;
@@ -41,22 +53,17 @@ namespace DaGenGraph.Example
 
         protected override ExampleGraph CreateGraph()
         {
-            return new ExampleGraph();
+            return CreateInstance<ExampleGraph>();
         }
 
         protected override ExampleGraph LoadGraph()
         {
-            string searchPath = EditorUtility.OpenFilePanel($"新建{typeof(ExampleGraph).Name}配置文件", "Assets", "json");
+            string searchPath = EditorUtility.OpenFilePanel($"新建{nameof(ExampleGraph)}配置文件", "Assets", "asset");
             if (!string.IsNullOrEmpty(searchPath))
-            { 
-                var jStr = File.ReadAllText(searchPath);
-                var obj = JsonConvert.DeserializeObject<ExampleGraph>(jStr, new JsonSerializerSettings()
-                {
-                    Converters = new List<JsonConverter>()
-                    {
-                        new UnityJsonConverter()
-                    }
-                });
+            {
+                searchPath = "Assets/"+searchPath.Split("/Assets/")[1];
+                var obj = AssetDatabase.LoadAssetAtPath<ExampleGraph>(searchPath);
+                if (obj == null) return null;
                 path = searchPath;
                 return obj;
             }
@@ -67,22 +74,60 @@ namespace DaGenGraph.Example
         {
             if (string.IsNullOrEmpty(path))
             {
-                string searchPath = EditorUtility.SaveFilePanel($"新建{typeof(ExampleGraph).Name}配置文件", "Assets",
-                    typeof(ExampleGraph).Name, "json");
-                if (!string.IsNullOrEmpty(searchPath))
-                {
-                    path = searchPath;
-                }
+                string searchPath = EditorUtility.SaveFilePanel($"新建{nameof(ExampleGraph)}配置文件", "Assets",
+                    nameof(ExampleGraph), "asset");
+                if (string.IsNullOrEmpty(searchPath)) return;
+                
+                path = "Assets/"+searchPath.Split("/Assets/")[1];
+                AssetDatabase.CreateAsset(m_Graph,path);
             }
-
-            File.WriteAllText(path, JsonConvert.SerializeObject(m_Graph, new JsonSerializerSettings()
+            else
             {
-                Converters = new List<JsonConverter>()
-                {
-                    new UnityJsonConverter()
-                }
-            }));
+                EditorUtility.SetDirty(m_Graph);
+            }
+            AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+        }
+        
+        protected override void AddGraphMenuItems(GenericMenu menu)
+        {
+            var current = Event.current;
+            base.AddGraphMenuItems(menu);
+            menu.AddItem(new GUIContent("New/Node"), false, () =>
+            {
+                if (m_Graph == null)
+                {
+                    InitGraph();
+                }
+                if (string.IsNullOrEmpty(path))
+                {
+                    string searchPath = EditorUtility.SaveFilePanel($"新建{nameof(ExampleGraph)}配置文件", "Assets",
+                        nameof(ExampleGraph), "asset");
+                    if (string.IsNullOrEmpty(searchPath)) return ;
+                
+                    path = "Assets/"+searchPath.Split("/Assets/")[1];
+                    AssetDatabase.CreateAsset(m_Graph,path);
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.Refresh();
+                }
+                CreateNodeView(m_Graph.CreateNode<ExampleNode>(current.mousePosition));
+            });
+        }
+
+        protected override void AddNodeMenuItems(GenericMenu menu, NodeBase nodeBase)
+        {
+            base.AddNodeMenuItems(menu, nodeBase);
+            menu.AddItem(new GUIContent("AddInputPort"), false,
+                () => { nodeBase.AddInputPort("InputName", EdgeMode.Multiple, true, true); });
+            menu.AddItem(new GUIContent("AddOutputPort"), false,
+                () => { nodeBase.AddOutputPort("OutputName", EdgeMode.Multiple, true, true); });
+        }
+
+        protected override void AddPortMenuItems(GenericMenu menu, Port port, bool isLine = false)
+        {
+            base.AddPortMenuItems(menu, port, isLine);
+            if(!isLine)
+                menu.AddItem(new GUIContent("Delete"), false, () => { RemovePort(port); });
         }
     }
 }

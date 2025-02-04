@@ -23,7 +23,7 @@ namespace DaGenGraph.Editor
         public Vector2 outputTangent = Vector2.zero;
         /// <summary> Holds the last calculated value of the InputPort Tangent in order to draw the connection curve (huge performance boost as we won't need to recalculate it on every frame) </summary>
         public Vector2 inputTangent = Vector2.zero;
-        public AnimBool ping = new AnimBool {speed = 0.6f};
+        // public AnimBool ping = new AnimBool {speed = 0.6f};
         //TODO Edge Shader
         // /// <summary> Lightweight handles material </summary>
         // private static Material s_HandleMaterial;
