@@ -985,7 +985,8 @@ namespace DaGenGraph.Editor
                 case GraphAction.SelectNodes:
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(graphAction), graphAction, null);
+                    Debug.LogWarning("ExecuteErrorGraphAction: "+graphAction);
+                    break;
             }
         }
 
@@ -1220,7 +1221,10 @@ namespace DaGenGraph.Editor
                     break;
 
                 case KeyCode.Delete: //Delete
-                    ExecuteGraphAction(GraphAction.DeleteNodes);
+                    if (Event.current.mousePosition.x < position.width - m_NodeInspectorWidth)
+                    {
+                        ExecuteGraphAction(GraphAction.DeleteNodes);
+                    }
                     break;
                 case KeyCode.A: //Select All
                     if (e.control || e.command) ExecuteGraphAction(GraphAction.SelectAll);
